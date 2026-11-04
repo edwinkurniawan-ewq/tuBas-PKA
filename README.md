@@ -1,6 +1,10 @@
 # Tsaritsa: Searching for Gnosis 👑♟️
 
+<<<<<<< HEAD
 **Tsaritsa: Searching for Gnosis** adalah game pemecahan masalah *N-Queens Problem* yang dibungkus dengan tema cerita Genshin Impact (*Tsaritsa vs Phanes*) menggunakan kerangka kerja Pygame. Project ini dikembangkan untuk tugas besar mata kuliah Pemrograman & Algoritma / Kecerdasan Buatan.
+=======
+**Tsaritsa: Searching for Gnosis** adalah game pemecahan masalah *N-Queens Problem* yang dibungkus dengan tema cerita Genshin Impact (*Tsaritsa vs Phanes*) menggunakan kerangka kerja Pygame. Project ini dikembangkan untuk tugas besar mata kuliah Pengantar Kecerdasan Artifisial.
+>>>>>>> origin/main
 
 ---
 
@@ -73,4 +77,4 @@ Berikut adalah daftar fitur dan perbaikan yang perlu dikerjakan untuk update sel
 2. **Jalankan Game:**
    ```bash
    python N-quenn.py
-   ```
+   ``` 
