@@ -57,25 +57,6 @@ class PhanesAgent:
         dfs(0)
         return steps
 
-    def solve_hill_climbing(self):
-        while True:
-            board = [random.randint(0, self.n - 1) for _ in range(self.n)]
-            while True:
-                current_conflicts = self.get_conflicts(board)
-                if current_conflicts == 0: return board
-                best_conflicts, best_board = current_conflicts, list(board)
-                for i in range(self.n):
-                    original_val = board[i]
-                    for j in range(self.n):
-                        if j != original_val:
-                            board[i] = j
-                            c = self.get_conflicts(board)
-                            if c < best_conflicts:
-                                best_conflicts, best_board = c, list(board)
-                    board[i] = original_val
-                if best_conflicts >= current_conflicts: break
-                board = best_board
-
     def get_hc_steps(self):
         steps = []
         while True:
@@ -100,88 +81,92 @@ class PhanesAgent:
                 board = list(best_board)
                 steps.append(list(board))
 
-    def solve_min_conflicts(self, max_steps=2000):
-        board = [random.randint(0, self.n - 1) for _ in range(self.n)]
-        for _ in range(max_steps):
-            if self.get_conflicts(board) == 0: return board
-            conflicted_vars = []
-            for i in range(self.n):
-                for j in range(self.n):
-                    if i != j and (board[i] == board[j] or abs(board[i] - board[j]) == abs(i - j)):
-                        conflicted_vars.append(i); break
-            if not conflicted_vars: return board
-            var = random.choice(conflicted_vars)
-            min_conflicts, best_val = float('inf'), board[var]
-            for val in range(self.n):
-                board[var] = val
-                c = self.get_conflicts(board)
-                if c < min_conflicts:
-                    min_conflicts, best_val = c, val
-            board[var] = best_val
-        return board
-
     def get_mc_steps(self, max_steps=2000):
         steps = []
-        board = [random.randint(0, self.n - 1) for _ in range(self.n)]
+        board = []
+        
+        # 1. Greedy Initialization 
+        for col in range(self.n):
+            min_c = float('inf')
+            best_r = []
+            for row in range(self.n):
+                c = 0
+                for prev_col in range(col):
+                    pr = board[prev_col]
+                    if pr == row or abs(pr - row) == abs(prev_col - col):
+                        c += 1
+                if c < min_c:
+                    min_c = c
+                    best_r = [row]
+                elif c == min_c:
+                    best_r.append(row)
+            board.append(random.choice(best_r))
+            
         steps.append(list(board))
+        
+        # 2. Main Min-Conflicts Loop
         for _ in range(max_steps):
             if self.get_conflicts(board) == 0: break
-            conflicted_vars = []
-            for i in range(self.n):
-                for j in range(self.n):
-                    if i != j and (board[i] == board[j] or abs(board[i] - board[j]) == abs(i - j)):
-                        conflicted_vars.append(i); break
-            if not conflicted_vars: break
             
-            var = random.choice(conflicted_vars)
-            min_conflicts, best_val = float('inf'), board[var]
+            conflicted_cols = []
+            for col in range(self.n):
+                row = board[col]
+                is_conflicted = False
+                for c in range(self.n):
+                    if c != col:
+                        if board[c] == row or abs(board[c] - row) == abs(c - col):
+                            is_conflicted = True
+                            break
+                if is_conflicted:
+                    conflicted_cols.append(col)
+                    
+            if not conflicted_cols: break
+            
+            col_to_fix = random.choice(conflicted_cols)
+            min_c = float('inf')
+            best_vals = []
+            
             for val in range(self.n):
-                board[var] = val
+                board[col_to_fix] = val
                 c = self.get_conflicts(board)
-                if c < min_conflicts:
-                    min_conflicts, best_val = c, val
-            board[var] = best_val
+                if c < min_c:
+                    min_c = c
+                    best_vals = [val]
+                elif c == min_c:
+                    best_vals.append(val)
+                    
+            board[col_to_fix] = random.choice(best_vals)
             steps.append(list(board))
+            
         return steps
 
 
 # --- ANTARMUKA GRAFIS PYGAME ---
 pygame.init()
 
-WIDTH, HEIGHT = 950, 650
+# Layar diperlebar menjadi 1200 untuk memuat 2 papan
+WIDTH, HEIGHT = 1200, 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Tsaritsa: Searching for Gnosis")
 
 base_path = os.path.dirname(os.path.abspath(__file__))
+asset_folder = "Aset Gnosis(Bidak ratu)"
 
 # 1. Memuat Gambar Gnosis
-base_path = os.path.dirname(os.path.abspath(__file__))
-asset_folder = "Aset Gnosis(Bidak ratu)" # Nama subfolder tempat aset berada
-
-# Daftar nama file yang sudah disesuaikan dengan ejaan barumu (pakai underscore)
 gnosis_filenames = [
-    "gnosis_Anemo.png", 
-    "gnosis_Cryo.png", 
-    "gnosis_Dendro.png", 
-    "gnosis_Electro.png",
-    "gnosis_Geo.png", 
-    "gnosis_Hydro-focalors.png", 
-    "gnosis_hydro.png", 
-    "gnosis_pyro.png"
+    "gnosis_Anemo.png", "gnosis_Cryo.png", "gnosis_Dendro.png", "gnosis_Electro.png",
+    "gnosis_Geo.png", "gnosis_hydro.png", "gnosis_Hydro-focalors.png", "gnosis_pyro.png"
 ]
-
 gnosis_images = []
 for filename in gnosis_filenames:
     try:
-        # Menggabungkan lokasi file script + nama folder + nama gambar
         img_path = os.path.join(base_path, asset_folder, filename)
         img = pygame.image.load(img_path).convert_alpha()
         gnosis_images.append(img)
-    except Exception as e:
-        print(f"Gagal memuat {filename}")
+    except Exception:
         gnosis_images.append(None)
 
-# 2. Memuat Gambar Karakter Visual Novel (Jika Ada)
+# 2. Memuat Gambar Karakter Visual Novel
 try:
     img_phanes = pygame.image.load(os.path.join(base_path, "phanes_sprite.png")).convert_alpha()
 except Exception:
@@ -210,44 +195,54 @@ font_text = pygame.font.SysFont("cambria", 18)
 
 class GameGUI:
     def __init__(self):
-        self.n = 8
+        self.available_sizes = [4, 5, 6, 7, 8, 9, 10, 11, 12]
+        self.size_index = 4 
+        self.n = self.available_sizes[self.size_index]
         self.agent = PhanesAgent(self.n)
         
-        # Inisialisasi Visual Novel Mode
         self.state = "VN_STORY"
         self.dialogues = [
             ("Phanes", "Papan ini telah disiapkan khusus untuk permainan ini. Pecahan Descender Ketiga tersebar tak beraturan di seluruh penjuru Teyvat."),
-            ("Phanes", "Memecah tubuhnya menjadi 8 bagian ,menukarnya dengan kebangkitan mu..betapa naif dirinya itu."),
-            ("Tsaritsa", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya,seberapa banyak rintangan,dan seberapa banyak kau menghalangiku."),
-            ("Phanes", "Menarik. Descender ketiga memiliki kekuatan yang besar,dan hanya pecahannya saja bisa merubah tatanan Teyvat. Aku ingin melihat upaya mu mengumpulkan semua pecahan itu."),
-            ("Tsaritsa", "Jangan meremehkan manusia,Phanes. Kau tidak akan mengerti bagaimana tekad manusia bisa membawa mereka untuk menjatuhkan Prinsip Langit mu itu"),
-            ("Phanes", "HAHHAHAHAHHAH. OMONG KOSONG MU TIDAK AKAN BERGUNA DIHADAPAN KU SAJA,TSARITSA.BUKTIKAN SAJA KATA KATAMU ITU"),
-            ("Phanes", " sekarang...BIARKAN PERMAINAN INI DIMULAI!!!")
+            ("Phanes", "Memecah tubuhnya menjadi 8 bagian, menukarnya dengan kebangkitan mu..betapa naif dirinya itu."),
+            ("Tsaritsa", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya, seberapa banyak rintangan, dan seberapa banyak kau menghalangiku."),
+            ("Phanes", "Menarik. Descender ketiga memiliki kekuatan yang besar, dan hanya pecahannya saja bisa merubah tatanan Teyvat. Aku ingin melihat upaya mu mengumpulkan semua pecahan itu."),
+            ("Tsaritsa", "Jangan meremehkan manusia, Phanes. Kau tidak akan mengerti bagaimana tekad manusia bisa membawa mereka untuk menjatuhkan Prinsip Langit mu itu"),
+            ("Phanes", "HAHHAHAHAHHAH. OMONG KOSONG MU TIDAK AKAN BERGUNA DIHADAPAN KU SAJA, TSARITSA. BUKTIKAN SAJA KATA KATAMU ITU"),
+            ("Phanes", "sekarang...BIARKAN PERMAINAN INI DIMULAI!!!")
         ]
         self.dialogue_idx = 0
         
-        self.board = [-1] * self.n 
+        # Variabel Papan
+        self.board = [-1] * self.n          # Papan utama (Solo / Clash)
+        self.board_agent = [-1] * self.n    # Papan kedua (Khusus Agent di Mode VS)
+        self.vs_winner = None
+        
         self.message = ""
-        self.times = {"DFS": 0, "HC": 0, "MC": 0}
+        self.times = {"DFS": 0.0, "HC": 0.0, "MC": 0.0}
         self.animation_steps = []
         self.anim_index = 0
         self.last_update_time = 0
         self.anim_speed = 100
         self.active_algo = ""
         
-        self.btn_anim_dfs = pygame.Rect(600, 220, 250, 35)
-        self.btn_anim_hc = pygame.Rect(600, 265, 250, 35)
-        self.btn_anim_mc = pygame.Rect(600, 310, 250, 35)
+        # Tombol Clash Menu
+        self.btn_anim_dfs = pygame.Rect(750, 270, 250, 35)
+        self.btn_anim_hc = pygame.Rect(750, 315, 250, 35)
+        self.btn_anim_mc = pygame.Rect(750, 360, 250, 35)
+        
+        # Tombol Pilih Algoritma VS
+        self.btn_vs_dfs = pygame.Rect(WIDTH//2 - 175, 250, 350, 50)
+        self.btn_vs_hc = pygame.Rect(WIDTH//2 - 175, 320, 350, 50)
+        self.btn_vs_mc = pygame.Rect(WIDTH//2 - 175, 390, 350, 50)
 
     def update_board_size(self):
         self.agent = PhanesAgent(self.n)
         self.board = [-1] * self.n
+        self.board_agent = [-1] * self.n
 
-    # --- FUNGSI VISUAL NOVEL ---
     def draw_character(self, name):
-        # Tentukan posisi dan gambar
         is_phanes = (name == "Phanes")
-        x_pos = 100 if is_phanes else WIDTH - 350
+        x_pos = 150 if is_phanes else WIDTH - 400
         y_pos = 150
         
         if is_phanes and img_phanes:
@@ -257,21 +252,15 @@ class GameGUI:
             scaled = pygame.transform.smoothscale(img_tsaritsa, (250, 450))
             screen.blit(scaled, (x_pos, y_pos))
         else:
-            # Fallback Siluet Manual (Gelap)
             color = (60, 70, 90) if is_phanes else (100, 140, 160)
-            # Badan
             pygame.draw.ellipse(screen, color, (x_pos, y_pos + 150, 250, 350))
-            # Kepala
             pygame.draw.circle(screen, color, (x_pos + 125, y_pos + 100), 70)
 
     def draw_vn_scene(self):
         screen.fill(COLOR_BG)
         speaker, text = self.dialogues[self.dialogue_idx]
-        
-        # 1. Gambar Karakter
         self.draw_character(speaker)
         
-        # 2. Kotak Nama
         name_rect = pygame.Rect(50, HEIGHT - 200, 200, 40)
         pygame.draw.rect(screen, COLOR_BTN, name_rect, border_radius=10)
         pygame.draw.rect(screen, COLOR_TSARITSA, name_rect, 2, border_radius=10)
@@ -279,13 +268,11 @@ class GameGUI:
         name_surf = font_vn_name.render(speaker, True, COLOR_TEXT)
         screen.blit(name_surf, (name_rect.x + 20, name_rect.y + 5))
 
-        # 3. Textbox Bawah (Semi transparan)
         tb_surface = pygame.Surface((WIDTH - 100, 130), pygame.SRCALPHA)
-        tb_surface.fill((10, 15, 25, 200)) # Hitam transparan
+        tb_surface.fill((10, 15, 25, 200))
         screen.blit(tb_surface, (50, HEIGHT - 150))
         pygame.draw.rect(screen, COLOR_TILE_LIGHT, (50, HEIGHT - 150, WIDTH - 100, 130), 2)
         
-        # 4. Render Teks Dialog (Pemecah baris sederhana)
         words = text.split(' ')
         lines = []
         current_line = ""
@@ -301,11 +288,9 @@ class GameGUI:
             text_surf = font_text.render(line, True, COLOR_TEXT)
             screen.blit(text_surf, (70, HEIGHT - 130 + (i * 25)))
 
-        # Hint klik
         hint = font_text.render("[Klik di mana saja untuk lanjut...]", True, COLOR_TILE_LIGHT)
         screen.blit(hint, (WIDTH - 300, HEIGHT - 40))
 
-    # --- FUNGSI GAMEPLAY PAPAN ---
     def draw_empty_target(self, x, y, size):
         m = size * 0.35
         points = [(x + size/2, y + m), (x + size - m, y + size/2),
@@ -336,15 +321,15 @@ class GameGUI:
         title = font_title.render("TSARITSA: SEARCHING FOR GNOSIS", True, COLOR_TSARITSA)
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 80))
 
-        lbl_size = font_subtitle.render(f"Ukuran Papan (N): {self.n}", True, COLOR_TEXT)
+        lbl_size = font_subtitle.render(f"Ukuran Papan (N): {self.n} x {self.n}", True, COLOR_TEXT)
         screen.blit(lbl_size, (WIDTH//2 - lbl_size.get_width()//2, 160))
         
-        pygame.draw.rect(screen, COLOR_BTN, (WIDTH//2 - 120, 155, 40, 40), border_radius=5)
-        pygame.draw.rect(screen, COLOR_BTN, (WIDTH//2 + 80, 155, 40, 40), border_radius=5)
-        screen.blit(font_title.render("<", True, COLOR_TEXT), (WIDTH//2 - 110, 155))
-        screen.blit(font_title.render(">", True, COLOR_TEXT), (WIDTH//2 + 90, 155))
+        pygame.draw.rect(screen, COLOR_BTN, (WIDTH//2 - 130, 155, 40, 40), border_radius=5)
+        pygame.draw.rect(screen, COLOR_BTN, (WIDTH//2 + 90, 155, 40, 40), border_radius=5)
+        screen.blit(font_title.render("<", True, COLOR_TEXT), (WIDTH//2 - 120, 155))
+        screen.blit(font_title.render(">", True, COLOR_TEXT), (WIDTH//2 + 100, 155))
 
-        buttons = ["1. Solo Player", "2. Solo vs Phanes", "3. Agent vs Agent (Benchmark)"]
+        buttons = ["1. Solo Player", "2. Solo vs Phanes (Balapan)", "3. Agent vs Agent (Benchmark)"]
         for i, text in enumerate(buttons):
             btn_surface = font_subtitle.render(text, True, COLOR_TEXT)
             rect = pygame.Rect(WIDTH//2 - 175, 240 + i*70, 350, 50)
@@ -353,22 +338,21 @@ class GameGUI:
             pygame.draw.rect(screen, color, rect, border_radius=8)
             screen.blit(btn_surface, (WIDTH//2 - btn_surface.get_width()//2, 250 + i*70))
 
-    def get_tile_info(self):
-        board_pixel_size = min(550, HEIGHT - 60)
-        tile_size = max(10, board_pixel_size // self.n) 
-        offset_x = 30
-        offset_y = (HEIGHT - (tile_size * self.n)) // 2
-        return tile_size, offset_x, offset_y
+    def draw_button(self, rect, text):
+        mouse_pos = pygame.mouse.get_pos()
+        color = COLOR_BTN_HOVER if rect.collidepoint(mouse_pos) else COLOR_BTN
+        pygame.draw.rect(screen, color, rect, border_radius=5)
+        txt_surf = font_text.render(text, True, COLOR_TEXT)
+        screen.blit(txt_surf, (rect.x + (rect.width - txt_surf.get_width())//2, rect.y + 8))
 
-    def draw_board(self):
-        tile_size, offset_x, offset_y = self.get_tile_info()
+    # --- FUNGSI GENERIK MENGGAMBAR PAPAN ---
+    def draw_grid(self, board_array, offset_x, offset_y, tile_size):
         conflicts = set()
-        
         for i in range(self.n):
-            if self.board[i] == -1: continue
+            if board_array[i] == -1: continue
             for j in range(i + 1, self.n):
-                if self.board[j] == -1: continue
-                if self.board[i] == self.board[j] or abs(self.board[i] - self.board[j]) == j - i:
+                if board_array[j] == -1: continue
+                if board_array[i] == board_array[j] or abs(board_array[i] - board_array[j]) == j - i:
                     conflicts.add(i); conflicts.add(j)
 
         for row in range(self.n):
@@ -377,26 +361,29 @@ class GameGUI:
                 x = offset_x + col * tile_size
                 y = offset_y + row * tile_size
                 
-                is_danger = (col in conflicts) and (self.board[col] == row)
+                is_danger = (col in conflicts) and (board_array[col] == row)
                 if is_danger:
                     pygame.draw.rect(screen, COLOR_DANGER, (x, y, tile_size, tile_size))
                 else:
                     pygame.draw.rect(screen, color, (x, y, tile_size, tile_size))
                 
-                if self.board[col] == row:
+                if board_array[col] == row:
                     self.draw_gnosis_piece(x, y, tile_size, col)
                 else:
                     self.draw_empty_target(x, y, tile_size)
 
-    def draw_button(self, rect, text):
-        mouse_pos = pygame.mouse.get_pos()
-        color = COLOR_BTN_HOVER if rect.collidepoint(mouse_pos) else COLOR_BTN
-        pygame.draw.rect(screen, color, rect, border_radius=5)
-        txt_surf = font_text.render(text, True, COLOR_TEXT)
-        screen.blit(txt_surf, (rect.x + (rect.width - txt_surf.get_width())//2, rect.y + 8))
+    # --- RENDERER KHUSUS SOLO & CLASH ---
+    def draw_solo_or_clash(self):
+        # Hitung ukuran papan di sisi kiri
+        board_pixel_size = min(600, HEIGHT - 80)
+        tile_size = max(10, board_pixel_size // self.n) 
+        offset_x = 50
+        offset_y = (HEIGHT - (tile_size * self.n)) // 2
+        
+        self.draw_grid(self.board, offset_x, offset_y, tile_size)
 
-    def draw_ui_panel(self):
-        panel_x = 600
+        # Panel UI di sebelah kanan
+        panel_x = 720
         pygame.draw.line(screen, COLOR_TILE_LIGHT, (panel_x-20, 50), (panel_x-20, HEIGHT-50), 2)
         
         lines = self.message.split('\n')
@@ -404,105 +391,191 @@ class GameGUI:
             screen.blit(font_text.render(line, True, COLOR_TSARITSA), (panel_x, 50 + (i*25)))
         
         if self.state in ["CLASH_MENU", "ANIMATING"]:
-            screen.blit(font_subtitle.render("Waktu Kalkulasi Phanes:", True, COLOR_TEXT), (panel_x, 120))
-            screen.blit(font_text.render(f"1. DFS: {self.times['DFS']:.5f} detik", True, COLOR_TEXT), (panel_x, 150))
-            screen.blit(font_text.render(f"2. Hill Climb: {self.times['HC']:.5f} detik", True, COLOR_TEXT), (panel_x, 170))
-            screen.blit(font_text.render(f"3. Min-Conflict: {self.times['MC']:.5f} detik", True, COLOR_TEXT), (panel_x, 190))
+            screen.blit(font_subtitle.render("Waktu Kalkulasi Phanes:", True, COLOR_TEXT), (panel_x, 160))
+            
+            str_dfs = f"{self.times['DFS']:.5f} detik" if self.times['DFS'] > 0 else "Belum diuji"
+            str_hc = f"{self.times['HC']:.5f} detik" if self.times['HC'] > 0 else "Belum diuji"
+            str_mc = f"{self.times['MC']:.5f} detik" if self.times['MC'] > 0 else "Belum diuji"
+            
+            screen.blit(font_text.render(f"1. DFS: {str_dfs}", True, COLOR_TEXT), (panel_x, 190))
+            screen.blit(font_text.render(f"2. Hill Climb: {str_hc}", True, COLOR_TEXT), (panel_x, 215))
+            screen.blit(font_text.render(f"3. Min-Conflict: {str_mc}", True, COLOR_TEXT), (panel_x, 240))
             
             if self.state == "CLASH_MENU":
-                self.draw_button(self.btn_anim_dfs, "Tonton Animasi DFS")
-                self.draw_button(self.btn_anim_hc, "Tonton Animasi Hill Climb")
-                self.draw_button(self.btn_anim_mc, "Tonton Animasi Min-Conflicts")
+                self.draw_button(self.btn_anim_dfs, "Jalankan DFS")
+                self.draw_button(self.btn_anim_hc, "Jalankan Hill Climb")
+                self.draw_button(self.btn_anim_mc, "Jalankan Min-Conflicts")
 
         btn_back = pygame.Rect(panel_x, HEIGHT - 90, 250, 40)
-        self.draw_button(btn_back, "Kembali ke Menu")
+        self.draw_button(btn_back, "Kembali ke Menu Utama")
+        self.btn_back_rect = btn_back
 
+    # --- RENDERER KHUSUS MODE VS (DUAL BOARD) ---
+    def draw_vs_menu(self):
+        screen.fill(COLOR_BG)
+        title = font_title.render("PILIH ALGORITMA LAWAN (PHANES)", True, COLOR_TSARITSA)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 100))
+        
+        self.draw_button(self.btn_vs_dfs, "1. Lawan DFS")
+        self.draw_button(self.btn_vs_hc, "2. Lawan Hill Climbing")
+        self.draw_button(self.btn_vs_mc, "3. Lawan Min-Conflicts")
+        
+        btn_back = pygame.Rect(WIDTH//2 - 175, HEIGHT - 100, 350, 50)
+        self.draw_button(btn_back, "Kembali ke Menu")
+        self.btn_back_rect = btn_back
+
+    def draw_vs_play(self):
+        board_pixel_size = min(480, HEIGHT - 180)
+        self.vs_tile_size = max(10, board_pixel_size // self.n) 
+        
+        # Papan Pemain (Kiri)
+        offset_x1 = 50
+        offset_y1 = 100
+        screen.blit(font_subtitle.render("Papan Tsaritsa (Kamu)", True, COLOR_TSARITSA), (offset_x1, 60))
+        self.draw_grid(self.board, offset_x1, offset_y1, self.vs_tile_size)
+        
+        # Papan Agent (Kanan)
+        offset_x2 = 650
+        offset_y2 = 100
+        screen.blit(font_subtitle.render(f"Papan Phanes ({self.active_algo})", True, COLOR_DANGER), (offset_x2, 60))
+        self.draw_grid(self.board_agent, offset_x2, offset_y2, self.vs_tile_size)
+
+        # Informasi di Bawah
+        lines = self.message.split('\n')
+        for i, line in enumerate(lines):
+            screen.blit(font_subtitle.render(line, True, COLOR_TEXT), (50, HEIGHT - 70 + (i*25)))
+
+        btn_back = pygame.Rect(WIDTH - 300, HEIGHT - 80, 250, 50)
+        self.draw_button(btn_back, "Menyerah / Kembali")
+        self.btn_back_rect = btn_back
+
+    # --- HANDLE KLIK ---
     def handle_click(self, pos):
         x, y = pos
         
         if self.state == "VN_STORY":
-            # Maju ke dialog berikutnya
             self.dialogue_idx += 1
             if self.dialogue_idx >= len(self.dialogues):
-                self.state = "MENU" # Prolog selesai
+                self.state = "MENU"
             return
 
         if self.state == "MENU":
             if 155 <= y <= 195:
-                if WIDTH//2 - 120 <= x <= WIDTH//2 - 80 and self.n > 4:
-                    self.n -= 1; self.update_board_size()
-                elif WIDTH//2 + 80 <= x <= WIDTH//2 + 120 and self.n < 32:
-                    self.n += 1; self.update_board_size()
+                if WIDTH//2 - 130 <= x <= WIDTH//2 - 90 and self.size_index > 0:
+                    self.size_index -= 1
+                    self.n = self.available_sizes[self.size_index]
+                    self.update_board_size()
+                elif WIDTH//2 + 90 <= x <= WIDTH//2 + 130 and self.size_index < len(self.available_sizes) - 1:
+                    self.size_index += 1
+                    self.n = self.available_sizes[self.size_index]
+                    self.update_board_size()
+                    
             if WIDTH//2 - 175 <= x <= WIDTH//2 + 175:
-                if 240 <= y <= 290: self.start_solo()
-                elif 310 <= y <= 360: self.start_vs_agent()
-                elif 380 <= y <= 430: self.start_agent_clash()
+                if 240 <= y <= 290: 
+                    self.state = "SOLO"
+                    self.board = [-1] * self.n
+                    self.message = "Setiap kolom memiliki satu bidak.\nKlik petak kosong untuk\nmemindahkannya.\nKlik bidak untuk mencabutnya."
+                elif 310 <= y <= 360: 
+                    self.state = "VS_MENU"
+                elif 380 <= y <= 430: 
+                    self.state = "CLASH_MENU"
+                    self.board = [-1] * self.n
+                    self.times = {"DFS": 0.0, "HC": 0.0, "MC": 0.0}
+                    self.message = "Mode Benchmark AI.\nPilih algoritma untuk diuji."
+            return
+
+        if self.state == "VS_MENU":
+            if self.btn_back_rect.collidepoint(pos): self.state = "MENU"
+            elif self.btn_vs_dfs.collidepoint(pos): self.start_vs_agent("DFS")
+            elif self.btn_vs_hc.collidepoint(pos): self.start_vs_agent("HC")
+            elif self.btn_vs_mc.collidepoint(pos): self.start_vs_agent("MC")
+            return
+
+        # Handle Tombol Kembali Generik
+        if hasattr(self, 'btn_back_rect') and self.btn_back_rect.collidepoint(pos):
+            self.state = "MENU"
+            return
+
+        # Klik Papan di Mode SOLO
+        if self.state == "SOLO":
+            board_pixel_size = min(600, HEIGHT - 80)
+            tile_size = max(10, board_pixel_size // self.n) 
+            offset_x = 50
+            offset_y = (HEIGHT - (tile_size * self.n)) // 2
+            
+            if offset_x <= x <= offset_x + tile_size*self.n and offset_y <= y <= offset_y + tile_size*self.n:
+                col = (x - offset_x) // tile_size
+                row = (y - offset_y) // tile_size
                 
-        else:
-            if 600 <= x <= 850 and HEIGHT - 90 <= y <= HEIGHT - 50:
-                self.state = "MENU"; return
+                if self.board[col] == row: self.board[col] = -1 
+                else: self.board[col] = row 
+                
+                c = self.agent.get_conflicts(self.board)
+                if -1 not in self.board and c == 0:
+                    self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
+                else:
+                    placed = self.n - self.board.count(-1)
+                    self.message = f"Bidak di papan: {placed}/{self.n}\nJumlah Konflik: {c}"
 
-            if self.state == "CLASH_MENU":
-                if self.btn_anim_dfs.collidepoint(pos): self.play_animation("DFS")
-                elif self.btn_anim_hc.collidepoint(pos): self.play_animation("HC")
-                elif self.btn_anim_mc.collidepoint(pos): self.play_animation("MC")
+        # Klik Papan Kiri di Mode VS_AGENT_PLAY
+        if self.state == "VS_AGENT_PLAY" and not self.vs_winner:
+            offset_x = 50
+            offset_y = 100
+            if offset_x <= x <= offset_x + self.vs_tile_size*self.n and offset_y <= y <= offset_y + self.vs_tile_size*self.n:
+                col = (x - offset_x) // self.vs_tile_size
+                row = (y - offset_y) // self.vs_tile_size
+                
+                if self.board[col] == row: self.board[col] = -1 
+                else: self.board[col] = row 
+                
+                if -1 not in self.board and self.agent.get_conflicts(self.board) == 0:
+                    self.vs_winner = "Player"
+                    self.message = "KAMU MENANG! Berhasil mengalahkan kecerdasan Phanes!"
 
-            if self.state in ["SOLO", "VS_AGENT"]:
-                tile_size, offset_x, offset_y = self.get_tile_info()
-                for row in range(self.n):
-                    for col in range(self.n):
-                        rect = pygame.Rect(offset_x + col*tile_size, offset_y + row*tile_size, tile_size, tile_size)
-                        if rect.collidepoint(pos):
-                            if self.board[col] == row:
-                                self.board[col] = -1 
-                            else:
-                                self.board[col] = row 
-                            
-                            c = self.agent.get_conflicts(self.board)
-                            placed = self.n - self.board.count(-1)
-                            if -1 not in self.board and c == 0:
-                                self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
-                            else:
-                                self.message = f"Bidak di papan: {placed}/{self.n}\nJumlah Konflik: {c}"
-                            return
+        # Klik Menu Clash
+        if self.state == "CLASH_MENU":
+            if self.btn_anim_dfs.collidepoint(pos): self.play_animation("DFS")
+            elif self.btn_anim_hc.collidepoint(pos): self.play_animation("HC")
+            elif self.btn_anim_mc.collidepoint(pos): self.play_animation("MC")
 
-    def start_solo(self):
-        self.state = "SOLO"
+    def start_vs_agent(self, algo):
+        self.state = "VS_AGENT_PLAY"
+        self.active_algo = algo
         self.board = [-1] * self.n
-        self.message = "Setiap kolom memiliki satu bidak.\nKlik petak kosong untuk\nmemindahkannya.\n\nKlik bidak yang sama\nuntuk mencabutnya."
-
-    def start_vs_agent(self):
-        self.state = "VS_AGENT"
-        self.board = [-1] * self.n
-        start = time.time()
-        self.agent.solve_dfs() 
-        t_agent = time.time() - start
-        self.message = f"Phanes telah menang dalam\n{t_agent:.4f} detik!\n\nSekarang giliranmu."
-
-    def start_agent_clash(self):
-        self.state = "LOADING_CLASH"
-        self.board = [-1] * self.n
-        self.message = "Phanes sedang beradu\nAlgoritma di belakang layar...\n(Harap tunggu sesaat)"
-        self.draw_board(); self.draw_ui_panel(); pygame.display.flip()
-
-        start = time.time(); self.agent.solve_dfs(); self.times["DFS"] = time.time() - start
-        start = time.time(); self.agent.solve_hill_climbing(); self.times["HC"] = time.time() - start
-        start = time.time(); self.agent.solve_min_conflicts(); self.times["MC"] = time.time() - start
+        self.board_agent = [-1] * self.n
+        self.vs_winner = None
+        self.message = f"Balapan dimulai! Kalahkan {algo} milik Phanes!"
         
-        self.state = "CLASH_MENU"
-        self.message = "Pertarungan Selesai!\nSilakan pilih algoritma yang\ningin kamu lihat visualisasinya."
+        # Kecepatan Animasi Phanes disesuaikan
+        if algo == "DFS":
+            self.animation_steps = self.agent.get_dfs_steps()
+            self.anim_speed = 5 
+        elif algo == "HC":
+            self.animation_steps = self.agent.get_hc_steps()
+            self.anim_speed = 100
+        elif algo == "MC":
+            self.animation_steps = self.agent.get_mc_steps()
+            self.anim_speed = 150
+            
+        self.anim_index = 0
+        self.last_update_time = pygame.time.get_ticks()
 
     def play_animation(self, algo):
         self.active_algo = algo
-        self.message = f"Mengumpulkan rekaman langkah\n{algo}..."
-        self.draw_board(); self.draw_ui_panel(); pygame.display.flip()
+        self.message = f"Phanes sedang memproses\nalgoritma {algo}...\n(Harap tunggu)"
+        self.draw_solo_or_clash()
+        pygame.display.flip()
 
+        start_time = time.perf_counter()
+        
         if algo == "DFS":
             self.animation_steps = self.agent.get_dfs_steps(); self.anim_speed = 5 
         elif algo == "HC":
             self.animation_steps = self.agent.get_hc_steps(); self.anim_speed = 100
         elif algo == "MC":
-            self.animation_steps = self.agent.get_mc_steps(); self.anim_speed = 200
+            self.animation_steps = self.agent.get_mc_steps(); self.anim_speed = 150
+            
+        self.times[algo] = time.perf_counter() - start_time
 
         self.state = "ANIMATING"
         self.anim_index = 0
@@ -524,28 +597,45 @@ try:
                 if event.button == 1: 
                     game.handle_click(event.pos)
 
+        # Update Animasi (Untuk Mode Clash)
         if game.state == "ANIMATING":
             if current_time - game.last_update_time > game.anim_speed:
                 if game.anim_index < len(game.animation_steps):
                     game.board = game.animation_steps[game.anim_index]
-                    game.message = f"Memutar ulang pergerakan\n{game.active_algo} AI...\nLangkah: {game.anim_index}/{len(game.animation_steps)}"
+                    game.message = f"Langkah: {game.anim_index}/{len(game.animation_steps)}"
                     game.anim_index += 1
                     game.last_update_time = current_time
                 else:
                     game.state = "CLASH_MENU"
-                    game.message = f"Animasi {game.active_algo} selesai!\nPilih algoritma lain untuk\nditonton."
+                    game.message = f"Pencarian {game.active_algo} Selesai!\nPilih algoritma lain."
+                    
+        # Update Animasi (Untuk Papan Agent di Mode VS)
+        elif game.state == "VS_AGENT_PLAY" and not game.vs_winner:
+            if current_time - game.last_update_time > game.anim_speed:
+                if game.anim_index < len(game.animation_steps):
+                    game.board_agent = game.animation_steps[game.anim_index]
+                    game.anim_index += 1
+                    game.last_update_time = current_time
+                else:
+                    # Agent selesai lebih dulu
+                    if -1 not in game.board_agent and game.agent.get_conflicts(game.board_agent) == 0:
+                        game.vs_winner = "Agent"
+                        game.message = f"PHANES MENANG! Algoritma {game.active_algo} terlalu cepat untuk manusia."
 
+        # RENDER LAYAR
         screen.fill(COLOR_BG)
 
-        # Logic Menggambar berdasarkan State
         if game.state == "VN_STORY":
             game.draw_vn_scene()
-        elif game.state != "LOADING_CLASH":
-            if game.state == "MENU":
-                game.draw_menu()
-            else:
-                game.draw_board()
-                game.draw_ui_panel()
+        elif game.state == "MENU":
+            game.draw_menu()
+        elif game.state == "VS_MENU":
+            game.draw_vs_menu()
+        elif game.state == "VS_AGENT_PLAY":
+            game.draw_vs_play()
+        else:
+            # Draw Mode Solo, Clash Menu, dan Animating Clash
+            game.draw_solo_or_clash()
 
         pygame.display.flip()
         clock.tick(60)
