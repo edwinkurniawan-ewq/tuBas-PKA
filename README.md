@@ -73,4 +73,4 @@ Berikut adalah daftar fitur dan perbaikan yang perlu dikerjakan untuk update sel
 2. **Jalankan Game:**
    ```bash
    python N-quenn.py
-   ```
+   ``` 
