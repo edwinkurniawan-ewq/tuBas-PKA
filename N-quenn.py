@@ -166,16 +166,41 @@ for filename in gnosis_filenames:
     except Exception:
         gnosis_images.append(None)
 
-# 2. Memuat Gambar Karakter Visual Novel
-try:
-    img_phanes = pygame.image.load(os.path.join(base_path, asset_folder, "Phanes_Dominance.png")).convert_alpha()
-except Exception:
-    img_phanes = None
+# --- 2. Memuat Gambar Karakter Visual Novel (Berbagai Ekspresi) ---
+phanes_sprites = {}
+tsaritsa_sprites = {}
 
-try:
-    img_tsaritsa = pygame.image.load(os.path.join(base_path, asset_folder, "Tsaritsa_Focus.png")).convert_alpha()
-except Exception:
-    img_tsaritsa = None
+phanes_files = {
+    "Mengejek": "Phanes_Taunting_Right.png",
+    "Bingung": "Phanes_Confused_Front.png",
+    "Santai": "Phanes_Shrug_Front.png",
+    "Menatap": "Phanes_Stare_Front.png",
+    "Tersinggung": "Phanes_Offended_Front.png",
+    "Pergi": "Phanes_Leaving_Left.png",
+    "Buka_Portal": "Phanes_Leaving_Open_Portal_Left.png",
+    "Tutup_Portal": "Phanes_Leaving_Closed_Portal.png"
+}
+
+tsaritsa_files = {
+    "Menahan": "Tsaritsa_Grief_Left.png",
+    "Murka": "Tsaritsa_Angry_Left.png",
+    "Sabar": "Tsaritsa_Closed_Eyes_Right.png",
+    "Merenung": "Tsaritsa_Reminiscing_Right.png"
+}
+
+for expr, filename in phanes_files.items():
+    try:
+        path = os.path.join(base_path, asset_folder, filename)
+        phanes_sprites[expr] = pygame.image.load(path).convert_alpha()
+    except Exception:
+        phanes_sprites[expr] = None
+
+for expr, filename in tsaritsa_files.items():
+    try:
+        path = os.path.join(base_path, asset_folder, filename)
+        tsaritsa_sprites[expr] = pygame.image.load(path).convert_alpha()
+    except Exception:
+        tsaritsa_sprites[expr] = None
 
 
 COLOR_BG = (15, 20, 30)
@@ -202,13 +227,37 @@ class GameGUI:
         
         self.state = "VN_STORY"
         self.dialogues = [
-            ("Phanes", "Papan ini telah disiapkan khusus untuk permainan ini. Pecahan Descender Ketiga tersebar tak beraturan di seluruh penjuru Teyvat."),
-            ("Phanes", "Memecah tubuhnya menjadi 8 bagian, menukarnya dengan kebangkitan mu..betapa naif dirinya itu."),
-            ("Tsaritsa", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya, seberapa banyak rintangan, dan seberapa banyak kau menghalangiku."),
-            ("Phanes", "Menarik. Descender ketiga memiliki kekuatan yang besar, dan hanya pecahannya saja bisa merubah tatanan Teyvat. Aku ingin melihat upaya mu mengumpulkan semua pecahan itu."),
-            ("Tsaritsa", "Jangan meremehkan manusia, Phanes. Kau tidak akan mengerti bagaimana tekad manusia bisa membawa mereka untuk menjatuhkan Prinsip Langit mu itu"),
-            ("Phanes", "HAHHAHAHAHHAH. OMONG KOSONG MU TIDAK AKAN BERGUNA DIHADAPAN KU SAJA, TSARITSA. BUKTIKAN SAJA KATA KATAMU ITU"),
-            ("Phanes", "sekarang...BIARKAN PERMAINAN INI DIMULAI!!!")
+            ("Phanes", "Mengejek", "Akhirnya."),
+            ("Phanes", "Mengejek", "Tubuh Descender Ke-3 berhasil saya bagi menjadi 8 bagian."),
+            ("Tsaritsa", "Menahan", "..."),
+            ("Phanes", "Mengejek", "Papan ini merepresentasikan posisi bagian-bagian tubuh Descender Ke-3 di seluruh penjuru Teyvat."),
+            ("Phanes", "Mengejek", "Namun karena kekuatan yang tersimpan dalam tiap bagian terlalu kuat..."),
+            ("Phanes", "Mengejek", "Bagian nya harus disebar diposisi yang spesifik, Heh. Bahkan dalam kematiannya dia tetap menjadi beban di hadapan saya-"),
+            ("Tsaritsa", "Menahan", "Cukup."),
+            ("Phanes", "Bingung", "Hm?"),
+            ("Tsaritsa", "Menahan", "Setiap kata yang keluar dari mulut mu adalah ejekan terhadap pengorbanannya."),
+            ("Phanes", "Santai", "Ah, saya lupa. Sebagai syarat dapat membagi tubuhnya adalah untuk membangkitkan kamu kembali."),
+            ("Phanes", "Santai", "Tapi kenapa kamu marah?"),
+            ("Phanes", "Santai", "Saya telah membangkitkan kamu kembali, harusnya kamu bersyukur-"),
+            ("Tsaritsa", "Menahan", "BERSYUKUR?!"),
+            ("Tsaritsa", "Menahan", "SETELAH KAMU MEMBUNUH SUAMI DAN ANAKKU?!"),
+            ("Phanes", "Santai", "..."),
+            ("Phanes", "Menatap", "Apa yang kamu dan dia lakukan mengancam kehidupan manusia. Yang saya lakukan adalah akibat dari rasa ''Cinta'' saya terhadap manusia."),
+            ("Tsaritsa", "Menahan", "''Cinta''?"),
+            ("Tsaritsa", "Menahan", "Perbuatan dan tindakan mu selama ini hanya siklus untuk menggambarkan kamu adalah pahlawan. Tapi kenyataan nya adalah kamu adalah sebab dari kesengsaraan manuasia."),
+            ("Tsaritsa", "Murka", "Bahkan kamu tidak mengetahui arti sebenarnya dari ''Cinta'' Phanes."),
+            ("Phanes", "Tersinggung", "..."),
+            ("Phanes", "Tersinggung", "Jaga"),
+            ("Phanes", "Tersinggung", "Jaga mulutmu"),
+            ("Tsaritsa", "Murka", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya, seberapa banyak rintangan, dan seberapa banyak kau menghalangiku."),
+            ("Phanes", "Tersinggung", "Hmph."),
+            ("Phanes", "Pergi", "Silahkan dan coba."),
+            ("Phanes", "Buka_Portal", ""),
+            ("Phanes", "Tutup_Portal", ""),
+            ("Tsaritsa", "Murka", "..."),
+            ("Tsaritsa", "Menahan", "..."),
+            ("Tsaritsa", "Sabar", "..."),
+            ("Tsaritsa", "Merenung", "█████████")
         ]
         self.dialogue_idx = 0
         
@@ -240,16 +289,20 @@ class GameGUI:
         self.board = [-1] * self.n
         self.board_agent = [-1] * self.n
 
-    def draw_character(self, name):
+    def draw_character(self, name, expression):
         is_phanes = (name == "Phanes")
         x_pos = 150 if is_phanes else WIDTH - 400
         y_pos = 150
         
-        if is_phanes and img_phanes:
-            scaled = pygame.transform.smoothscale(img_phanes, (450, 435))
-            screen.blit(scaled, (x_pos, y_pos))
-        elif not is_phanes and img_tsaritsa:
-            scaled = pygame.transform.smoothscale(img_tsaritsa, (450, 410))
+        # Ambil gambar dari kamus sprite berdasarkan ekspresi, dengan fallback aman
+        sprite_dict = phanes_sprites if is_phanes else tsaritsa_sprites
+        img = sprite_dict.get(expression)
+        if not img:
+            # Ambil nilai pertama yang tersedia jika ekspresi tidak ditemukan
+            img = next(iter(sprite_dict.values())) if sprite_dict else None
+        
+        if img:
+            scaled = pygame.transform.smoothscale(img, (450, 400))
             screen.blit(scaled, (x_pos, y_pos))
         else:
             color = (60, 70, 90) if is_phanes else (100, 140, 160)
@@ -258,8 +311,9 @@ class GameGUI:
 
     def draw_vn_scene(self):
         screen.fill(COLOR_BG)
-        speaker, text = self.dialogues[self.dialogue_idx]
-        self.draw_character(speaker)
+        # PERBAIKAN DI SINI: Unpack 3 elemen (speaker, expression, text)
+        speaker, expression, text = self.dialogues[self.dialogue_idx]
+        self.draw_character(speaker, expression)
         
         name_rect = pygame.Rect(50, HEIGHT - 200, 200, 40)
         pygame.draw.rect(screen, COLOR_BTN, name_rect, border_radius=10)
