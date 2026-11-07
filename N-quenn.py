@@ -150,7 +150,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Tsaritsa: Searching for Gnosis")
 
 base_path = os.path.dirname(os.path.abspath(__file__))
-asset_folder = "Aset Gnosis(Bidak ratu)"
+asset_folder = "Assets"
 
 # 1. Memuat Gambar Gnosis
 gnosis_filenames = [
@@ -168,12 +168,12 @@ for filename in gnosis_filenames:
 
 # 2. Memuat Gambar Karakter Visual Novel
 try:
-    img_phanes = pygame.image.load(os.path.join(base_path, "phanes_sprite.png")).convert_alpha()
+    img_phanes = pygame.image.load(os.path.join(base_path, asset_folder, "Phanes_Dominance.png")).convert_alpha()
 except Exception:
     img_phanes = None
 
 try:
-    img_tsaritsa = pygame.image.load(os.path.join(base_path, "tsaritsa_sprite.png")).convert_alpha()
+    img_tsaritsa = pygame.image.load(os.path.join(base_path, asset_folder, "Tsaritsa_Focus.png")).convert_alpha()
 except Exception:
     img_tsaritsa = None
 
@@ -246,10 +246,10 @@ class GameGUI:
         y_pos = 150
         
         if is_phanes and img_phanes:
-            scaled = pygame.transform.smoothscale(img_phanes, (250, 450))
+            scaled = pygame.transform.smoothscale(img_phanes, (450, 435))
             screen.blit(scaled, (x_pos, y_pos))
         elif not is_phanes and img_tsaritsa:
-            scaled = pygame.transform.smoothscale(img_tsaritsa, (250, 450))
+            scaled = pygame.transform.smoothscale(img_tsaritsa, (450, 410))
             screen.blit(scaled, (x_pos, y_pos))
         else:
             color = (60, 70, 90) if is_phanes else (100, 140, 160)
