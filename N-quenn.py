@@ -178,14 +178,17 @@ phanes_files = {
     "Tersinggung": "Phanes_Offended_Front.png",
     "Pergi": "Phanes_Leaving_Left.png",
     "Buka_Portal": "Phanes_Leaving_Open_Portal_Left.png",
-    "Tutup_Portal": "Phanes_Leaving_Closed_Portal.png"
+    "Tutup_Portal": "Phanes_Leaving_Closed_Portal.png",
+    "Defeat": "Phanes_Defeat_Front.png"
 }
 
 tsaritsa_files = {
     "Menahan": "Tsaritsa_Grief_Left.png",
     "Murka": "Tsaritsa_Angry_Left.png",
     "Sabar": "Tsaritsa_Closed_Eyes_Right.png",
-    "Merenung": "Tsaritsa_Reminiscing_Right.png"
+    "Merenung": "Tsaritsa_Reminiscing_Right.png",
+    "Santai": "Tsaritsa_Focus_Left.png",
+    "Defeat": "Tsaritsa_Defeat_Left.png"
 }
 
 for expr, filename in phanes_files.items():
@@ -370,6 +373,37 @@ class GameGUI:
             pygame.draw.polygon(screen, COLOR_TSARITSA, points)
             pygame.draw.polygon(screen, (255, 255, 255), points, max(1, int(size*0.03)))
 
+    def draw_gameplay_characters(self, phanes_expr, tsaritsa_expr=None, tsaritsa_on_left=False):
+        # 1. Phanes di Kiri Atas
+        p_img = phanes_sprites.get(phanes_expr) or phanes_sprites.get("Mengejek")
+        if p_img:
+            scaled_p = pygame.transform.smoothscale(p_img, (180, 160))
+            screen.blit(scaled_p, (20, 20))
+            lbl_p = font_text.render("Phanes", True, COLOR_DANGER)
+            screen.blit(lbl_p, (20, 185))
+
+        # 2. Tsaritsa
+        if tsaritsa_expr:
+            t_img = tsaritsa_sprites.get(tsaritsa_expr) or tsaritsa_sprites.get("Murka")
+            if t_img:
+                scaled_t = pygame.transform.smoothscale(t_img, (180, 160))
+                
+                # ATUR POSISI: Jika True, letakkan di Kiri Bawah (Mode 2), jika False di Kanan Bawah (Mode 1)
+                if tsaritsa_on_left:
+                    t_x = 20
+                    t_y = HEIGHT - 220
+                    lbl_x = 20
+                    lbl_y = HEIGHT - 60
+                else:
+                    t_x = WIDTH - 200
+                    t_y = HEIGHT - 220
+                    lbl_x = WIDTH - 200
+                    lbl_y = HEIGHT - 60
+                
+                screen.blit(scaled_t, (t_x, t_y))
+                lbl_t = font_text.render("Tsaritsa", True, COLOR_TSARITSA)
+                screen.blit(lbl_t, (lbl_x, lbl_y))
+
     def draw_menu(self):
         screen.fill(COLOR_BG)
         title = font_title.render("TSARITSA: SEARCHING FOR GNOSIS", True, COLOR_TSARITSA)
@@ -429,15 +463,35 @@ class GameGUI:
     # --- RENDERER KHUSUS SOLO & CLASH ---
     def draw_solo_or_clash(self):
         # Hitung ukuran papan di sisi kiri
-        board_pixel_size = min(600, HEIGHT - 80)
+        board_pixel_size = min(500, HEIGHT - 150)
         tile_size = max(10, board_pixel_size // self.n) 
-        offset_x = 50
+        offset_x = 220  # Digeser sedikit ke kanan agar muat potret Phanes di kiri
         offset_y = (HEIGHT - (tile_size * self.n)) // 2
         
         self.draw_grid(self.board, offset_x, offset_y, tile_size)
 
+        # --- ATUR EKSPRESI BERDASARKAN KONFLIK (MODE 1 & 3) ---
+        conflicts = self.agent.get_conflicts(self.board)
+        is_solved = (-1 not in self.board and conflicts == 0)
+
+        if self.state == "SOLO":
+            if is_solved:
+                p_expr = "Defeat" # Phanes kesal pemain menang
+                t_expr = "Murka"       # Tsaritsa menang
+            elif conflicts > 6:
+                p_expr = "Mengejek"    # Phanes mengejek banyak konflik
+                t_expr = "Menahan"
+            else:
+                p_expr = "Santai"
+                t_expr = "Santai"
+            self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=False)
+        elif self.state in ["CLASH_MENU", "ANIMATING"]:
+            # Mode 3: Hanya Phanes dengan 2 state (Berpikir/Animasi vs Selesai)
+            p_expr = "Bingung" if self.state == "ANIMATING" else "Santai"
+            self.draw_gameplay_characters(p_expr, None)
+
         # Panel UI di sebelah kanan
-        panel_x = 720
+        panel_x = 850
         pygame.draw.line(screen, COLOR_TILE_LIGHT, (panel_x-20, 50), (panel_x-20, HEIGHT-50), 2)
         
         lines = self.message.split('\n')
@@ -479,27 +533,40 @@ class GameGUI:
         self.btn_back_rect = btn_back
 
     def draw_vs_play(self):
-        board_pixel_size = min(480, HEIGHT - 180)
+        board_pixel_size = min(400, HEIGHT - 200)
         self.vs_tile_size = max(10, board_pixel_size // self.n) 
         
-        # Papan Pemain (Kiri)
-        offset_x1 = 50
+        # Papan Pemain (Tengah-Kiri)
+        offset_x1 = 220
         offset_y1 = 100
         screen.blit(font_subtitle.render("Papan Tsaritsa (Kamu)", True, COLOR_TSARITSA), (offset_x1, 60))
         self.draw_grid(self.board, offset_x1, offset_y1, self.vs_tile_size)
         
         # Papan Agent (Kanan)
-        offset_x2 = 650
+        offset_x2 = 700
         offset_y2 = 100
         screen.blit(font_subtitle.render(f"Papan Phanes ({self.active_algo})", True, COLOR_DANGER), (offset_x2, 60))
         self.draw_grid(self.board_agent, offset_x2, offset_y2, self.vs_tile_size)
 
+        # --- ATUR 2 STATE (MENANG / KALAH) UNTUK MODE 2 ---
+        if self.vs_winner == "Player":
+            p_expr = "Defeat"
+            t_expr = "Murka"
+        elif self.vs_winner == "Agent":
+            p_expr = "Mengejek"
+            t_expr = "Defeat"
+        else:
+            p_expr = "Bingung" # Sedang bertanding / berpikir
+            t_expr = "Santai"
+            
+        self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=True)
+
         # Informasi di Bawah
         lines = self.message.split('\n')
         for i, line in enumerate(lines):
-            screen.blit(font_subtitle.render(line, True, COLOR_TEXT), (50, HEIGHT - 70 + (i*25)))
+            screen.blit(font_subtitle.render(line, True, COLOR_TEXT), (220, HEIGHT - 100 + (i*25)))
 
-        btn_back = pygame.Rect(WIDTH - 300, HEIGHT - 80, 250, 50)
+        btn_back = pygame.Rect(WIDTH - 280, HEIGHT - 80, 250, 50)
         self.draw_button(btn_back, "Menyerah / Kembali")
         self.btn_back_rect = btn_back
 
@@ -550,11 +617,11 @@ class GameGUI:
             self.state = "MENU"
             return
 
-        # Klik Papan di Mode SOLO
+        # Klik Papan di Mode SOLO Revison for putting the sprites
         if self.state == "SOLO":
-            board_pixel_size = min(600, HEIGHT - 80)
+            board_pixel_size = min(500, HEIGHT - 150)  # Sesuaikan dengan ukuran baru di draw_solo_or_clash
             tile_size = max(10, board_pixel_size // self.n) 
-            offset_x = 50
+            offset_x = 220  # Harus sama persis dengan offset_x di draw_solo_or_clash!
             offset_y = (HEIGHT - (tile_size * self.n)) // 2
             
             if offset_x <= x <= offset_x + tile_size*self.n and offset_y <= y <= offset_y + tile_size*self.n:
@@ -573,11 +640,15 @@ class GameGUI:
 
         # Klik Papan Kiri di Mode VS_AGENT_PLAY
         if self.state == "VS_AGENT_PLAY" and not self.vs_winner:
-            offset_x = 50
-            offset_y = 100
-            if offset_x <= x <= offset_x + self.vs_tile_size*self.n and offset_y <= y <= offset_y + self.vs_tile_size*self.n:
-                col = (x - offset_x) // self.vs_tile_size
-                row = (y - offset_y) // self.vs_tile_size
+            board_pixel_size = min(400, HEIGHT - 200)  # Sesuaikan dengan ukuran baru di draw_vs_play
+            self.vs_tile_size = max(10, board_pixel_size // self.n) 
+            
+            offset_x1 = 220  # Harus sama persis dengan offset_x1 di draw_vs_play!
+            offset_y1 = 100
+            
+            if offset_x1 <= x <= offset_x1 + self.vs_tile_size*self.n and offset_y1 <= y <= offset_y1 + self.vs_tile_size*self.n:
+                col = (x - offset_x1) // self.vs_tile_size
+                row = (y - offset_y1) // self.vs_tile_size
                 
                 if self.board[col] == row: self.board[col] = -1 
                 else: self.board[col] = row 
