@@ -150,7 +150,7 @@ pygame.display.set_caption("Tsaritsa: Searching for Gnosis")
 is_fullscreen = False
 
 base_path = os.path.dirname(os.path.abspath(__file__))
-asset_folder = "Aset Gnosis(Bidak ratu)"
+asset_folder = "Assets"
 
 gnosis_filenames = [
     "gnosis_Anemo.png", "gnosis_Cryo.png", "gnosis_Dendro.png", "gnosis_Electro.png",
@@ -165,15 +165,44 @@ for filename in gnosis_filenames:
     except Exception:
         gnosis_images.append(None)
 
-try:
-    img_phanes = pygame.image.load(os.path.join(base_path, "phanes_sprite.png")).convert_alpha()
-except Exception:
-    img_phanes = None
+# --- 2. Memuat Gambar Karakter Visual Novel (Berbagai Ekspresi) ---
+phanes_sprites = {}
+tsaritsa_sprites = {}
 
-try:
-    img_tsaritsa = pygame.image.load(os.path.join(base_path, "tsaritsa_sprite.png")).convert_alpha()
-except Exception:
-    img_tsaritsa = None
+phanes_files = {
+    "Mengejek": "Phanes_Taunting_Right.png",
+    "Bingung": "Phanes_Confused_Front.png",
+    "Santai": "Phanes_Shrug_Front.png",
+    "Menatap": "Phanes_Stare_Front.png",
+    "Tersinggung": "Phanes_Offended_Front.png",
+    "Pergi": "Phanes_Leaving_Left.png",
+    "Buka_Portal": "Phanes_Leaving_Open_Portal_Left.png",
+    "Tutup_Portal": "Phanes_Leaving_Closed_Portal.png",
+    "Defeat": "Phanes_Defeat_Front.png"
+}
+
+tsaritsa_files = {
+    "Menahan": "Tsaritsa_Grief_Left.png",
+    "Murka": "Tsaritsa_Angry_Left.png",
+    "Sabar": "Tsaritsa_Closed_Eyes_Right.png",
+    "Merenung": "Tsaritsa_Reminiscing_Right.png",
+    "Santai": "Tsaritsa_Focus_Left.png",
+    "Defeat": "Tsaritsa_Defeat_Left.png"
+}
+
+for expr, filename in phanes_files.items():
+    try:
+        path = os.path.join(base_path, asset_folder, filename)
+        phanes_sprites[expr] = pygame.image.load(path).convert_alpha()
+    except Exception:
+        phanes_sprites[expr] = None
+
+for expr, filename in tsaritsa_files.items():
+    try:
+        path = os.path.join(base_path, asset_folder, filename)
+        tsaritsa_sprites[expr] = pygame.image.load(path).convert_alpha()
+    except Exception:
+        tsaritsa_sprites[expr] = None
 
 
 COLOR_BG = (15, 20, 30)
@@ -200,13 +229,37 @@ class GameGUI:
         
         self.state = "VN_STORY"
         self.dialogues = [
-            ("Phanes", "Papan ini telah disiapkan khusus untuk permainan ini. Pecahan Descender Ketiga tersebar tak beraturan di seluruh penjuru Teyvat."),
-            ("Phanes", "Memecah tubuhnya menjadi 8 bagian, menukarnya dengan kebangkitan mu..betapa naif dirinya itu."),
-            ("Tsaritsa", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya, seberapa banyak rintangan, dan seberapa banyak kau menghalangiku."),
-            ("Phanes", "Menarik. Descender ketiga memiliki kekuatan yang besar, dan hanya pecahannya saja bisa merubah tatanan Teyvat. Aku ingin melihat upaya mu mengumpulkan semua pecahan itu."),
-            ("Tsaritsa", "Jangan meremehkan manusia, Phanes. Kau tidak akan mengerti bagaimana tekad manusia bisa membawa mereka untuk menjatuhkan Prinsip Langit mu itu"),
-            ("Phanes", "HAHHAHAHAHHAH. OMONG KOSONG MU TIDAK AKAN BERGUNA DIHADAPAN KU SAJA, TSARITSA. BUKTIKAN SAJA KATA KATAMU ITU"),
-            ("Phanes", "sekarang...BIARKAN PERMAINAN INI DIMULAI!!!")
+            ("Phanes", "Mengejek", "Akhirnya."),
+            ("Phanes", "Mengejek", "Tubuh Descender Ke-3 berhasil saya bagi menjadi 8 bagian."),
+            ("Tsaritsa", "Menahan", "..."),
+            ("Phanes", "Mengejek", "Papan ini merepresentasikan posisi bagian-bagian tubuh Descender Ke-3 di seluruh penjuru Teyvat."),
+            ("Phanes", "Mengejek", "Namun karena kekuatan yang tersimpan dalam tiap bagian terlalu kuat..."),
+            ("Phanes", "Mengejek", "Bagian nya harus disebar diposisi yang spesifik, Heh. Bahkan dalam kematiannya dia tetap menjadi beban di hadapan saya-"),
+            ("Tsaritsa", "Menahan", "Cukup."),
+            ("Phanes", "Bingung", "Hm?"),
+            ("Tsaritsa", "Menahan", "Setiap kata yang keluar dari mulut mu adalah ejekan terhadap pengorbanannya."),
+            ("Phanes", "Santai", "Ah, saya lupa. Sebagai syarat dapat membagi tubuhnya adalah untuk membangkitkan kamu kembali."),
+            ("Phanes", "Santai", "Tapi kenapa kamu marah?"),
+            ("Phanes", "Santai", "Saya telah membangkitkan kamu kembali, harusnya kamu bersyukur-"),
+            ("Tsaritsa", "Menahan", "BERSYUKUR?!"),
+            ("Tsaritsa", "Menahan", "SETELAH KAMU MEMBUNUH SUAMI DAN ANAKKU?!"),
+            ("Phanes", "Santai", "..."),
+            ("Phanes", "Menatap", "Apa yang kamu dan dia lakukan mengancam kehidupan manusia. Yang saya lakukan adalah akibat dari rasa ''Cinta'' saya terhadap manusia."),
+            ("Tsaritsa", "Menahan", "''Cinta''?"),
+            ("Tsaritsa", "Menahan", "Perbuatan dan tindakan mu selama ini hanya siklus untuk menggambarkan kamu adalah pahlawan. Tapi kenyataan nya adalah kamu adalah sebab dari kesengsaraan manuasia."),
+            ("Tsaritsa", "Murka", "Bahkan kamu tidak mengetahui arti sebenarnya dari ''Cinta'' Phanes."),
+            ("Phanes", "Tersinggung", "..."),
+            ("Phanes", "Tersinggung", "Jaga"),
+            ("Phanes", "Tersinggung", "Jaga mulutmu"),
+            ("Tsaritsa", "Murka", "Aku akan mengumpulkan semua 8 bagian itu. Tidak peduli seberapa sulit jalannya, seberapa banyak rintangan, dan seberapa banyak kau menghalangiku."),
+            ("Phanes", "Tersinggung", "Hmph."),
+            ("Phanes", "Pergi", "Silahkan dan coba."),
+            ("Phanes", "Buka_Portal", ""),
+            ("Phanes", "Tutup_Portal", ""),
+            ("Tsaritsa", "Murka", "..."),
+            ("Tsaritsa", "Menahan", "..."),
+            ("Tsaritsa", "Sabar", "..."),
+            ("Tsaritsa", "Merenung", "█████████")
         ]
         self.dialogue_idx = 0
         
@@ -242,17 +295,21 @@ class GameGUI:
         self.board = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.board_agent = [random.randint(0, self.n - 1) for _ in range(self.n)]
 
-    def draw_character(self, name):
+    def draw_character(self, name, expression):
         w, h = screen.get_width(), screen.get_height()
         is_phanes = (name == "Phanes")
         x_pos = 150 if is_phanes else w - 400
         y_pos = 150
         
-        if is_phanes and img_phanes:
-            scaled = pygame.transform.smoothscale(img_phanes, (250, 450))
-            screen.blit(scaled, (x_pos, y_pos))
-        elif not is_phanes and img_tsaritsa:
-            scaled = pygame.transform.smoothscale(img_tsaritsa, (250, 450))
+        # Ambil gambar dari kamus sprite berdasarkan ekspresi, dengan fallback aman
+        sprite_dict = phanes_sprites if is_phanes else tsaritsa_sprites
+        img = sprite_dict.get(expression)
+        if not img:
+            # Ambil nilai pertama yang tersedia jika ekspresi tidak ditemukan
+            img = next(iter(sprite_dict.values())) if sprite_dict else None
+        
+        if img:
+            scaled = pygame.transform.smoothscale(img, (450, 400))
             screen.blit(scaled, (x_pos, y_pos))
         else:
             color = (60, 70, 90) if is_phanes else (100, 140, 160)
@@ -262,8 +319,10 @@ class GameGUI:
     def draw_vn_scene(self):
         screen.fill(COLOR_BG)
         w, h = screen.get_width(), screen.get_height()
-        speaker, text = self.dialogues[self.dialogue_idx]
-        self.draw_character(speaker)
+        
+        # Unpack 3 elemen (speaker, expression, text)
+        speaker, expression, text = self.dialogues[self.dialogue_idx]
+        self.draw_character(speaker, expression)
         
         name_rect = pygame.Rect(50, h - 200, 200, 40)
         pygame.draw.rect(screen, COLOR_BTN, name_rect, border_radius=10)
@@ -319,6 +378,39 @@ class GameGUI:
             ]
             pygame.draw.polygon(screen, COLOR_TSARITSA, points)
             pygame.draw.polygon(screen, (255, 255, 255), points, max(1, int(size*0.03)))
+
+    def draw_gameplay_characters(self, phanes_expr, tsaritsa_expr=None, tsaritsa_on_left=False):
+        w, h = screen.get_width(), screen.get_height()
+        
+        # 1. Phanes di Kiri Atas
+        p_img = phanes_sprites.get(phanes_expr) or phanes_sprites.get("Mengejek")
+        if p_img:
+            scaled_p = pygame.transform.smoothscale(p_img, (180, 160))
+            screen.blit(scaled_p, (20, 20))
+            lbl_p = font_text.render("Phanes", True, COLOR_DANGER)
+            screen.blit(lbl_p, (20, 185))
+
+        # 2. Tsaritsa
+        if tsaritsa_expr:
+            t_img = tsaritsa_sprites.get(tsaritsa_expr) or tsaritsa_sprites.get("Murka")
+            if t_img:
+                scaled_t = pygame.transform.smoothscale(t_img, (180, 160))
+                
+                # ATUR POSISI menggunakan 'w' dan 'h' dinamis
+                if tsaritsa_on_left:
+                    t_x = 20
+                    t_y = h - 220
+                    lbl_x = 20
+                    lbl_y = h - 60
+                else:
+                    t_x = w - 200
+                    t_y = h - 220
+                    lbl_x = w - 200
+                    lbl_y = h - 60
+                
+                screen.blit(scaled_t, (t_x, t_y))
+                lbl_t = font_text.render("Tsaritsa", True, COLOR_TSARITSA)
+                screen.blit(lbl_t, (lbl_x, lbl_y))
 
     def draw_menu(self):
         screen.fill(COLOR_BG)
@@ -383,15 +475,37 @@ class GameGUI:
 
     def draw_solo_or_clash(self):
         w, h = screen.get_width(), screen.get_height()
-        panel_w = 300
-        board_pixel_size = min(w - panel_w - 100, h - 100) 
+        
+        # Hitung ukuran papan di sisi kiri menggunakan 'h' dinamis
+        board_pixel_size = min(500, h - 150)
         tile_size = max(10, board_pixel_size // self.n) 
-        offset_x = 50
+        offset_x = 220  # Digeser sedikit ke kanan agar muat potret Phanes di kiri
         offset_y = (h - (tile_size * self.n)) // 2
         
         self.draw_grid(self.board, offset_x, offset_y, tile_size)
 
-        panel_x = w - panel_w - 50
+        # --- ATUR EKSPRESI BERDASARKAN KONFLIK (MODE 1 & 3) ---
+        conflicts = self.agent.get_conflicts(self.board)
+        is_solved = (-1 not in self.board and conflicts == 0)
+
+        if self.state == "SOLO":
+            if is_solved:
+                p_expr = "Defeat" # Phanes kesal pemain menang
+                t_expr = "Murka"       # Tsaritsa menang
+            elif conflicts > 6:
+                p_expr = "Mengejek"    # Phanes mengejek banyak konflik
+                t_expr = "Menahan"
+            else:
+                p_expr = "Santai"
+                t_expr = "Santai"
+            self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=True)
+        elif self.state in ["CLASH_MENU", "ANIMATING"]:
+            # Mode 3: Hanya Phanes dengan 2 state (Berpikir/Animasi vs Selesai)
+            p_expr = "Bingung" if self.state == "ANIMATING" else "Santai"
+            self.draw_gameplay_characters(p_expr, None)
+
+        # Panel UI di sebelah kanan
+        panel_x = 850
         pygame.draw.line(screen, COLOR_TILE_LIGHT, (panel_x-20, 50), (panel_x-20, h-50), 2)
         
         lines = self.message.split('\n')
@@ -446,13 +560,13 @@ class GameGUI:
     def draw_vs_play(self):
         w, h = screen.get_width(), screen.get_height()
         
-        # PERBAIKAN PENTING: Batasi max height papan agar menyisakan ruang lega di bawah (min 250px)
+        # Batasi max height papan agar menyisakan ruang lega di bawah menggunakan 'h' dinamis
         board_pixel_size = min((w - 150) // 2, h - 250)
         self.vs_tile_size = max(10, board_pixel_size // self.n) 
         actual_board_w = self.vs_tile_size * self.n
         
-        # Papan Pemain (Kiri)
-        offset_x1 = 50
+        # Papan Pemain (Tengah-Kiri)
+        offset_x1 = 220
         offset_y1 = 100
         title_player = f"Papan Tsaritsa (Kamu) - {self.player_timer:.2f}s"
         screen.blit(font_subtitle.render(title_player, True, COLOR_TSARITSA), (offset_x1, 60))
@@ -464,19 +578,27 @@ class GameGUI:
         screen.blit(font_subtitle.render(f"Papan Phanes ({self.active_algo})", True, COLOR_DANGER), (offset_x2, 60))
         self.draw_grid(self.board_agent, offset_x2, offset_y2, self.vs_tile_size)
 
-        # Teks diletakkan tepat di atas jajaran tombol (di luar area papan)
+        # --- ATUR 2 STATE (MENANG / KALAH) UNTUK MODE 2 ---
+        if self.vs_winner == "Player":
+            p_expr = "Defeat"
+            t_expr = "Murka"
+        elif self.vs_winner == "Agent":
+            p_expr = "Mengejek"
+            t_expr = "Defeat"
+        else:
+            p_expr = "Bingung" # Sedang bertanding / berpikir
+            t_expr = "Santai"
+            
+        self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=True)
+
+        # Informasi di Bawah menggunakan 'h' dinamis
         lines = self.message.split('\n')
         for i, line in enumerate(lines):
-            screen.blit(font_text.render(line, True, COLOR_TEXT), (50, h - 130 + (i*25)))
+            screen.blit(font_subtitle.render(line, True, COLOR_TEXT), (220, h - 100 + (i*25)))
 
-        self.btn_acak_rect = pygame.Rect(w - 700, h - 70, 210, 40)
-        self.draw_button(self.btn_acak_rect, "Acak Papan (Kamu)")
-        
-        self.btn_reset_rect = pygame.Rect(w - 450, h - 70, 210, 40)
-        self.draw_button(self.btn_reset_rect, "Reset Papan (Kamu)")
-
-        self.btn_back_rect = pygame.Rect(w - 200, h - 70, 180, 40)
-        self.draw_button(self.btn_back_rect, "Menyerah / Kembali")
+        btn_back = pygame.Rect(w - 280, h - 80, 250, 50)
+        self.draw_button(btn_back, "Menyerah / Kembali")
+        self.btn_back_rect = btn_back
 
     def handle_click(self, pos):
         x, y = pos
@@ -544,12 +666,11 @@ class GameGUI:
                     self.message = "Papan pemain telah di-reset!"
             return
 
-        # Klik Papan di Mode SOLO
+        # Klik Papan di Mode SOLO (Menggunakan 'h' dinamis)
         if self.state == "SOLO":
-            panel_w = 300
-            board_pixel_size = min(w - panel_w - 100, h - 100) 
+            board_pixel_size = min(500, h - 150)
             tile_size = max(10, board_pixel_size // self.n) 
-            offset_x = 50
+            offset_x = 220
             offset_y = (h - (tile_size * self.n)) // 2
             
             if offset_x <= x <= offset_x + tile_size*self.n and offset_y <= y <= offset_y + tile_size*self.n:
@@ -564,13 +685,17 @@ class GameGUI:
                 else:
                     self.message = f"Jumlah Konflik saat ini: {c}"
 
-        # Klik Papan Kiri di Mode VS_AGENT_PLAY
+        # Klik Papan Kiri di Mode VS_AGENT_PLAY (Menggunakan 'h' dinamis)
         if self.state == "VS_AGENT_PLAY" and not self.vs_winner:
-            offset_x = 50
-            offset_y = 100
-            if offset_x <= x <= offset_x + self.vs_tile_size*self.n and offset_y <= y <= offset_y + self.vs_tile_size*self.n:
-                col = (x - offset_x) // self.vs_tile_size
-                row = (y - offset_y) // self.vs_tile_size
+            board_pixel_size = min((w - 150) // 2, h - 250)
+            self.vs_tile_size = max(10, board_pixel_size // self.n) 
+            
+            offset_x1 = 220
+            offset_y1 = 100
+            
+            if offset_x1 <= x <= offset_x1 + self.vs_tile_size*self.n and offset_y1 <= y <= offset_y1 + self.vs_tile_size*self.n:
+                col = (x - offset_x1) // self.vs_tile_size
+                row = (y - offset_y1) // self.vs_tile_size
                 
                 self.board[col] = row 
                 
