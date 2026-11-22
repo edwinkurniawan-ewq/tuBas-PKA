@@ -473,6 +473,7 @@ class GameGUI:
         self.last_update_time = 0
         self.anim_speed = 100
         self.active_algo = ""
+        self.active_level = ""
         
         # --- VARIABEL MODE 3: AGENT VS AGENT (DUAL BOARD BENCHMARK) ---
         self.clash_algo1 = "DFS"
@@ -619,7 +620,7 @@ class GameGUI:
                     self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
                 elif self.state == "VS_AGENT_PLAY":
                     self.vs_winner = "Player"
-                    self.message = "KAMU MENANG! Berhasil mengalahkan kecerdasan Phanes!"
+                    self.message = f"KAMU MENANG! Berhasil menaklukkan Phanes ({self.active_level})!"
             else:
                 self.message = f"{hint_msg}\nSisa konflik: {c}"
 
@@ -1060,24 +1061,23 @@ class GameGUI:
     def draw_vs_menu(self):
         screen.fill(COLOR_BG)
         w, h = screen.get_width(), screen.get_height()
-        title = font_title.render("PILIH ALGORITMA LAWAN (PHANES)", True, COLOR_TSARITSA)
-        screen.blit(title, (w//2 - title.get_width()//2, 65))
+        title = font_title.render("PILIH TINGKAT KESULITAN LAWAN (PHANES)", True, COLOR_TSARITSA)
+        screen.blit(title, (w//2 - title.get_width()//2, 75))
         
-        algos = [
-            ("DFS", "1. Lawan DFS"),
-            ("SAHC", "2. Lawan Steepest-Ascent Hill Climbing"),
-            ("FCHC", "3. Lawan First-Choice Hill Climbing"),
-            ("RHC", "4. Lawan Restart Hill Climbing"),
-            ("MC", "5. Lawan Min-Conflicts")
+        levels = [
+            ("Easy", "FCHC", "1. Easy - First-Choice Hill Climbing (FCHC)"),
+            ("Medium", "MC", "2. Medium - Min-Conflicts (MC)"),
+            ("Hard", "RHC", "3. Hard - Restart Hill Climbing (RHC)"),
+            ("Hell", "DFS", "4. Hell - Depth-First Search (DFS)")
         ]
 
         self.vs_btn_rects = {}
-        for i, (code, label) in enumerate(algos):
-            r = pygame.Rect(w//2 - 200, 145 + i*60, 400, 48)
-            self.vs_btn_rects[code] = r
+        for i, (lvl, code, label) in enumerate(levels):
+            r = pygame.Rect(w//2 - 210, 175 + i*68, 420, 52)
+            self.vs_btn_rects[(lvl, code)] = r
             self.draw_button(r, label)
 
-        self.btn_back_rect = pygame.Rect(w//2 - 200, h - 85, 400, 48)
+        self.btn_back_rect = pygame.Rect(w//2 - 210, h - 95, 420, 50)
         self.draw_button(self.btn_back_rect, "Kembali ke Menu")
 
     def draw_vs_play(self):
@@ -1097,7 +1097,8 @@ class GameGUI:
         # Papan Agent (Kanan)
         offset_x2 = w - 50 - actual_board_w
         offset_y2 = 100
-        screen.blit(font_subtitle.render(f"Papan Phanes ({self.active_algo})", True, COLOR_DANGER), (offset_x2, 60))
+        title_agent = f"Papan Phanes [{self.active_level} - {self.active_algo}]"
+        screen.blit(font_subtitle.render(title_agent, True, COLOR_DANGER), (offset_x2, 60))
         self.draw_grid(self.board_agent, offset_x2, offset_y2, self.vs_tile_size)
 
         if self.vs_winner == "Player":
@@ -1173,9 +1174,9 @@ class GameGUI:
             if self.btn_back_rect.collidepoint(pos):
                 self.state = "MENU"
                 return
-            for code, rect in self.vs_btn_rects.items():
+            for (lvl, code), rect in self.vs_btn_rects.items():
                 if rect.collidepoint(pos):
-                    self.start_vs_agent(code)
+                    self.start_vs_agent(lvl, code)
                     return
             return
 
@@ -1268,17 +1269,18 @@ class GameGUI:
                 
                 if self.agent.get_conflicts(self.board) == 0:
                     self.vs_winner = "Player"
-                    self.message = "KAMU MENANG! Berhasil mengalahkan kecerdasan Phanes!"
+                    self.message = f"KAMU MENANG! Berhasil menaklukkan Phanes ({self.active_level})!"
 
-    def start_vs_agent(self, algo):
+    def start_vs_agent(self, level, algo):
         self.state = "VS_AGENT_PLAY"
+        self.active_level = level
         self.active_algo = algo
         self.board = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.board_agent = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.vs_winner = None
         self.hints_left = self.max_hints
         self.last_hint_cells = []
-        self.message = f"Balapan dimulai! Geser bidakmu dan kalahkan {algo} Phanes!"
+        self.message = f"Level {level}: Geser bidakmu dan kalahkan {algo} Phanes!"
         
         self.player_start_time = time.perf_counter()
         self.player_timer = 0.0
@@ -1383,11 +1385,11 @@ try:
                 else:
                     if -1 not in game.board_agent and game.agent.get_conflicts(game.board_agent) == 0:
                         game.vs_winner = "Agent"
-                        game.message = f"PHANES MENANG! Algoritma {game.active_algo} terlalu cepat."
+                        game.message = f"PHANES MENANG! Level {game.active_level} ({game.active_algo}) terlalu cepat."
                     else:
                         c_agent = game.agent.get_conflicts(game.board_agent)
                         game.vs_winner = "Player"
-                        game.message = f"KAMU MENANG! Phanes ({game.active_algo}) terjebak Local Optimum ({c_agent} konflik)!"
+                        game.message = f"KAMU MENANG! Phanes [{game.active_level} - {game.active_algo}] terjebak Local Optimum ({c_agent} konflik)!"
 
         screen.fill(COLOR_BG)
 
