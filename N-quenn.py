@@ -38,8 +38,11 @@ class PhanesAgent:
 
     def get_dfs_steps(self):
         steps = []
+        restart_flags = []
         board = [-1] * self.n
         steps.append(list(board))
+        restart_flags.append(False)
+
         def dfs(col):
             if col == self.n: return True
             for row in range(self.n):
@@ -50,21 +53,27 @@ class PhanesAgent:
                 if safe:
                     board[col] = row
                     steps.append(list(board))
+                    restart_flags.append(False)
                     if dfs(col + 1): return True
                     board[col] = -1
                     steps.append(list(board))
+                    restart_flags.append(False)
             return False
         dfs(0)
-        return steps
+        return steps, restart_flags
 
-    def get_hc_steps(self):
+    # 1. Steepest-Ascent Hill Climbing (Cek semua tetangga, ambil yang paling rendah konfliknya)
+    def get_sahc_steps(self):
         steps = []
+        restart_flags = []
         board = [random.randint(0, self.n - 1) for _ in range(self.n)]
         steps.append(list(board))
+        restart_flags.append(False)
+
         while True:
             current_conflicts = self.get_conflicts(board)
             if current_conflicts == 0:
-                return steps
+                return steps, restart_flags
             best_conflicts = current_conflicts
             best_boards = []
             for i in range(self.n):
@@ -84,16 +93,54 @@ class PhanesAgent:
                 break
             board = random.choice(best_boards)
             steps.append(list(board))
-        return steps
+            restart_flags.append(False)
+        return steps, restart_flags
 
+    # 2. First-Choice Hill Climbing (Acak tetangga, langsung ambil yang pertama lebih baik)
+    def get_fchc_steps(self):
+        steps = []
+        restart_flags = []
+        board = [random.randint(0, self.n - 1) for _ in range(self.n)]
+        steps.append(list(board))
+        restart_flags.append(False)
+
+        while True:
+            current_conflicts = self.get_conflicts(board)
+            if current_conflicts == 0:
+                return steps, restart_flags
+
+            neighbors = [(col, row) for col in range(self.n) for row in range(self.n) if row != board[col]]
+            random.shuffle(neighbors)
+
+            moved = False
+            for col, row in neighbors:
+                orig_val = board[col]
+                board[col] = row
+                c = self.get_conflicts(board)
+                if c < current_conflicts:
+                    steps.append(list(board))
+                    restart_flags.append(False)
+                    moved = True
+                    break
+                board[col] = orig_val
+
+            if not moved:
+                break
+        return steps, restart_flags
+
+    # 3. Random-Restart Hill Climbing
     def get_rhc_steps(self, max_restarts=100):
         steps = []
-        for _ in range(max_restarts):
+        restart_flags = []
+        for attempt in range(max_restarts):
             board = [random.randint(0, self.n - 1) for _ in range(self.n)]
             steps.append(list(board))
+            restart_flags.append(attempt > 0)
+
             while True:
                 current_conflicts = self.get_conflicts(board)
-                if current_conflicts == 0: return steps
+                if current_conflicts == 0:
+                    return steps, restart_flags
                 best_conflicts = current_conflicts
                 best_boards = []
                 for i in range(self.n):
@@ -113,13 +160,16 @@ class PhanesAgent:
                     break 
                 board = random.choice(best_boards)
                 steps.append(list(board))
-        return steps
+                restart_flags.append(False)
+        return steps, restart_flags
 
+    # 4. Min-Conflicts
     def get_mc_steps(self, max_steps=500, max_restarts=50):
         steps = []
-        for _ in range(max_restarts):
+        restart_flags = []
+        for attempt in range(max_restarts):
             board = []
-            # 1. Greedy Initialization
+            # Greedy Initialization
             for col in range(self.n):
                 min_c = float('inf')
                 best_r = []
@@ -137,11 +187,12 @@ class PhanesAgent:
                 board.append(random.choice(best_r))
 
             steps.append(list(board))
+            restart_flags.append(attempt > 0)
 
-            # 2. Main Min-Conflicts Loop
+            # Main Min-Conflicts Loop
             for _ in range(max_steps):
                 if self.get_conflicts(board) == 0:
-                    return steps
+                    return steps, restart_flags
 
                 conflicted_cols = []
                 for col in range(self.n):
@@ -153,7 +204,7 @@ class PhanesAgent:
                                 break
 
                 if not conflicted_cols:
-                    return steps
+                    return steps, restart_flags
 
                 col_to_fix = random.choice(conflicted_cols)
                 orig_val = board[col_to_fix]
@@ -173,8 +224,9 @@ class PhanesAgent:
 
                 board[col_to_fix] = random.choice(best_vals)
                 steps.append(list(board))
+                restart_flags.append(False)
 
-        return steps
+        return steps, restart_flags
 
     # Bantuan Tsaritsa (1 langkah sepadan dengan algoritma tandingan)
     def get_tsaritsa_hint(self, current_board, algo="MC"):
@@ -203,8 +255,23 @@ class PhanesAgent:
                             return [(col, r)], f"Bantuan (DFS): Geser kolom {col+1} ke baris {r+1} (aman dari kiri)."
             algo = "RHC"
 
-        # Strategi sepadan Hill Climbing & Restart Hill Climbing
-        if algo in ["HC", "RHC"]:
+        # Strategi sepadan First-Choice Hill Climbing
+        if algo == "FCHC":
+            neighbors = [(col, r) for col in range(self.n) for r in range(self.n) if r != board[col]]
+            random.shuffle(neighbors)
+            for col, r in neighbors:
+                orig_r = board[col]
+                board[col] = r
+                c = self.get_conflicts(board)
+                board[col] = orig_r
+                if c < current_c:
+                    return [(col, r)], f"Bantuan (FCHC): Pilihan pertama lebih baik -> kolom {col+1} ke baris {r+1} (konflik {c})."
+            col = random.randint(0, self.n - 1)
+            r = (board[col] + 1) % self.n
+            return [(col, r)], f"Bantuan (FCHC): Terjebak Local Optimum! Geser paksa kolom {col+1} ke baris {r+1}."
+
+        # Strategi sepadan Steepest-Ascent & Restart Hill Climbing
+        if algo in ["SAHC", "RHC"]:
             best_c = current_c
             best_moves = []
             for col in range(self.n):
@@ -224,10 +291,10 @@ class PhanesAgent:
                 col, r = random.choice(best_moves)
                 return [(col, r)], f"Bantuan ({algo}): Geser kolom {col+1} ke baris {r+1} (konflik turun jadi {best_c})."
             else:
-                if algo == "HC":
+                if algo == "SAHC":
                     col = random.randint(0, self.n - 1)
                     r = (board[col] + 1) % self.n
-                    return [(col, r)], f"Bantuan (HC): Terjebak Local Optimum! Geser paksa kolom {col+1} ke baris {r+1}."
+                    return [(col, r)], f"Bantuan (SAHC): Terjebak Local Optimum! Geser paksa kolom {col+1} ke baris {r+1}."
                 else:
                     cols = random.sample(range(self.n), min(2, self.n))
                     moves = []
@@ -350,7 +417,8 @@ font_title = pygame.font.SysFont("cambria", 32, bold=True)
 font_vn_name = pygame.font.SysFont("cambria", 26, bold=True)
 font_subtitle = pygame.font.SysFont("cambria", 22, bold=True)
 font_text = pygame.font.SysFont("cambria", 18)
-font_small = pygame.font.SysFont("cambria", 16)
+font_small = pygame.font.SysFont("cambria", 15)
+font_tiny = pygame.font.SysFont("cambria", 13)
 
 class GameGUI:
     def __init__(self):
@@ -378,7 +446,7 @@ class GameGUI:
             ("Phanes", "Santai", "..."),
             ("Phanes", "Menatap", "Apa yang kamu dan dia lakukan mengancam kehidupan manusia. Yang saya lakukan adalah akibat dari rasa ''Cinta'' saya terhadap manusia."),
             ("Tsaritsa", "Menahan", "''Cinta''?"),
-            ("Tsaritsa", "Menahan", "Perbuatan dan tindakan mu selama ini hanya siklus untuk menggambarkan kamu adalah pahlawan. Tapi kenyataan nya adalah kamu adalah sebab dari kesengsaraan manuasia."),
+            ("Tsaritsa", "Menahan", "Perbuatan dan tindakan mu selama ini hanya siklus untuk menggambarkan kamu adalah pahlawan. Tapi kenyataan nya adalah kamu adalah sebab dari kesengsaraan manusia."),
             ("Tsaritsa", "Murka", "Bahkan kamu tidak mengetahui arti sebenarnya dari ''Cinta'' Phanes."),
             ("Phanes", "Tersinggung", "..."),
             ("Phanes", "Tersinggung", "Jaga"),
@@ -408,11 +476,17 @@ class GameGUI:
         
         # --- VARIABEL MODE 3: AGENT VS AGENT (DUAL BOARD BENCHMARK) ---
         self.clash_algo1 = "DFS"
-        self.clash_algo2 = "HC"
+        self.clash_algo2 = "SAHC"
         self.clash_board1 = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.clash_board2 = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.clash_steps1 = []
         self.clash_steps2 = []
+        self.clash_restart_flags1 = []
+        self.clash_restart_flags2 = []
+        self.clash_restarts1 = 0
+        self.clash_restarts2 = 0
+        self.clash_conflict_hist1 = []
+        self.clash_conflict_hist2 = []
         self.clash_idx1 = 0
         self.clash_idx2 = 0
         self.clash_speed1 = 100
@@ -430,9 +504,10 @@ class GameGUI:
         self.clash_solved2 = False
         self.clash_first_winner = None
         
-        # Rect tombol pilihan Agent vs Agent
+        # Rect tombol pilihan Agent vs Agent & Solo vs Phanes
         self.clash_btn_left_rects = {}
         self.clash_btn_right_rects = {}
+        self.vs_btn_rects = {}
         self.btn_start_clash_rect = pygame.Rect(0,0,0,0)
         self.btn_rematch_clash_rect = pygame.Rect(0,0,0,0)
         
@@ -446,10 +521,6 @@ class GameGUI:
         self.player_timer = 0.0
         
         # Penampung Rect Tombol Dinamis
-        self.btn_vs_dfs_rect = pygame.Rect(0,0,0,0)
-        self.btn_vs_hc_rect = pygame.Rect(0,0,0,0)
-        self.btn_vs_rhc_rect = pygame.Rect(0,0,0,0)
-        self.btn_vs_mc_rect = pygame.Rect(0,0,0,0)
         self.btn_hint_rect = pygame.Rect(0,0,0,0)
         self.btn_acak_rect = pygame.Rect(0,0,0,0)
         self.btn_reset_rect = pygame.Rect(0,0,0,0)
@@ -466,28 +537,40 @@ class GameGUI:
 
     def get_algo_steps_and_speed(self, algo):
         if algo == "DFS":
-            return self.agent.get_dfs_steps(), 15
-        elif algo == "HC":
-            return self.agent.get_hc_steps(), 120
+            steps, r_flags = self.agent.get_dfs_steps()
+            return steps, r_flags, 15
+        elif algo == "SAHC":
+            steps, r_flags = self.agent.get_sahc_steps()
+            return steps, r_flags, 120
+        elif algo == "FCHC":
+            steps, r_flags = self.agent.get_fchc_steps()
+            return steps, r_flags, 120
         elif algo == "RHC":
-            return self.agent.get_rhc_steps(), 70
+            steps, r_flags = self.agent.get_rhc_steps()
+            return steps, r_flags, 70
         elif algo == "MC":
-            return self.agent.get_mc_steps(), 120
-        return [], 100
+            steps, r_flags = self.agent.get_mc_steps()
+            return steps, r_flags, 120
+        return [], [], 100
 
     def start_agent_clash(self):
         self.state = "CLASH_PLAY"
         
         t0 = time.perf_counter()
-        self.clash_steps1, self.clash_speed1 = self.get_algo_steps_and_speed(self.clash_algo1)
+        self.clash_steps1, self.clash_restart_flags1, self.clash_speed1 = self.get_algo_steps_and_speed(self.clash_algo1)
         self.clash_calc_time1 = time.perf_counter() - t0
         
         t1 = time.perf_counter()
-        self.clash_steps2, self.clash_speed2 = self.get_algo_steps_and_speed(self.clash_algo2)
+        self.clash_steps2, self.clash_restart_flags2, self.clash_speed2 = self.get_algo_steps_and_speed(self.clash_algo2)
         self.clash_calc_time2 = time.perf_counter() - t1
 
         self.clash_board1 = list(self.clash_steps1[0]) if self.clash_steps1 else [0]*self.n
         self.clash_board2 = list(self.clash_steps2[0]) if self.clash_steps2 else [0]*self.n
+        
+        self.clash_restarts1 = 0
+        self.clash_restarts2 = 0
+        self.clash_conflict_hist1 = [self.agent.get_conflicts(self.clash_board1)]
+        self.clash_conflict_hist2 = [self.agent.get_conflicts(self.clash_board2)]
         
         self.clash_idx1 = 1
         self.clash_idx2 = 1
@@ -680,7 +763,7 @@ class GameGUI:
             pygame.draw.rect(screen, color, rect, border_radius=8)
             screen.blit(btn_surface, (w//2 - btn_surface.get_width()//2, 250 + i*70))
 
-    def draw_button(self, rect, text, custom_color=None, custom_hover=None, disabled=False, selected=False):
+    def draw_button(self, rect, text, custom_color=None, custom_hover=None, disabled=False, selected=False, small_font=False):
         mouse_pos = pygame.mouse.get_pos()
         if disabled:
             color = COLOR_BTN_DISABLED
@@ -694,7 +777,8 @@ class GameGUI:
         if (custom_color or selected) and not disabled:
             pygame.draw.rect(screen, COLOR_TSARITSA, rect, 2 if selected else 1, border_radius=5)
         txt_color = (130, 140, 150) if disabled else COLOR_TEXT
-        txt_surf = font_text.render(text, True, txt_color)
+        fnt = font_small if small_font else font_text
+        txt_surf = fnt.render(text, True, txt_color)
         screen.blit(txt_surf, (rect.x + (rect.width - txt_surf.get_width())//2, rect.y + (rect.height - txt_surf.get_height())//2))
 
     def draw_grid(self, board_array, offset_x, offset_y, tile_size, highlight_cells=None):
@@ -727,6 +811,45 @@ class GameGUI:
                     self.draw_gnosis_piece(x, y, tile_size, col)
                 else:
                     self.draw_empty_target(x, y, tile_size)
+
+    def draw_conflict_graph(self, rect, history, line_color, label):
+        pygame.draw.rect(screen, (20, 27, 40), rect, border_radius=6)
+        pygame.draw.rect(screen, COLOR_TILE_LIGHT, rect, 1, border_radius=6)
+
+        curr_c = history[-1] if history else 0
+        max_possible = max(1, (self.n * (self.n - 1)) // 2)
+        max_c = max(max_possible, max(history) if history else 1)
+
+        hdr = font_tiny.render(f"{label} | Konflik Saat Ini: {curr_c}", True, line_color)
+        screen.blit(hdr, (rect.x + 8, rect.y + 4))
+
+        pad_l, pad_r, pad_t, pad_b = 10, 10, 22, 8
+        gx = rect.x + pad_l
+        gy = rect.y + pad_t
+        gw = max(10, rect.width - pad_l - pad_r)
+        gh = max(10, rect.height - pad_t - pad_b)
+
+        pygame.draw.line(screen, (50, 75, 95), (gx, gy + gh), (gx + gw, gy + gh), 1)
+
+        if not history:
+            return
+
+        visible = history[-120:] if len(history) > 120 else history
+        num_pts = len(visible)
+
+        if num_pts == 1:
+            py = gy + gh - int((visible[0] / max_c) * gh)
+            pygame.draw.circle(screen, line_color, (gx + gw // 2, py), 3)
+            return
+
+        pts = []
+        for idx, val in enumerate(visible):
+            px = gx + int((idx / (num_pts - 1)) * gw)
+            py = gy + gh - int((val / max_c) * gh)
+            pts.append((px, py))
+
+        pygame.draw.lines(screen, line_color, False, pts, 2)
+        pygame.draw.circle(screen, (255, 255, 255), pts[-1], 3)
 
     def draw_solo(self):
         w, h = screen.get_width(), screen.get_height()
@@ -795,44 +918,45 @@ class GameGUI:
         w, h = screen.get_width(), screen.get_height()
         
         title = font_title.render("BENCHMARK: AGENT VS AGENT (DUAL BOARD)", True, COLOR_TSARITSA)
-        screen.blit(title, (w//2 - title.get_width()//2, 60))
+        screen.blit(title, (w//2 - title.get_width()//2, 45))
         
-        sub = font_text.render(f"Pilih 2 algoritma untuk diadu secara real-time pada papan {self.n}x{self.n}:", True, COLOR_TEXT)
-        screen.blit(sub, (w//2 - sub.get_width()//2, 110))
+        sub = font_text.render(f"Pilih 2 dari 5 algoritma untuk diadu secara real-time pada papan {self.n}x{self.n}:", True, COLOR_TEXT)
+        screen.blit(sub, (w//2 - sub.get_width()//2, 90))
 
         algos = [
             ("DFS", "1. Depth-First Search (DFS)"),
-            ("HC", "2. Hill Climbing (HC)"),
-            ("RHC", "3. Restart Hill Climbing (RHC)"),
-            ("MC", "4. Min-Conflicts (MC)")
+            ("SAHC", "2. Steepest-Ascent HC (SAHC)"),
+            ("FCHC", "3. First-Choice HC (FCHC)"),
+            ("RHC", "4. Restart Hill Climbing (RHC)"),
+            ("MC", "5. Min-Conflicts (MC)")
         ]
 
         # Kolom Kiri (Papan 1)
-        col1_x = w//2 - 330
+        col1_x = w//2 - 360
         lbl1 = font_subtitle.render(f"Papan Kiri: {self.clash_algo1}", True, COLOR_TSARITSA)
-        screen.blit(lbl1, (col1_x + 140 - lbl1.get_width()//2, 165))
+        screen.blit(lbl1, (col1_x + 155 - lbl1.get_width()//2, 135))
         
         self.clash_btn_left_rects = {}
         for i, (code, label) in enumerate(algos):
-            r = pygame.Rect(col1_x, 205 + i*58, 280, 46)
+            r = pygame.Rect(col1_x, 170 + i*52, 310, 42)
             self.clash_btn_left_rects[code] = r
-            self.draw_button(r, label, selected=(self.clash_algo1 == code))
+            self.draw_button(r, label, selected=(self.clash_algo1 == code), small_font=True)
 
         # Kolom Kanan (Papan 2)
         col2_x = w//2 + 50
         lbl2 = font_subtitle.render(f"Papan Kanan: {self.clash_algo2}", True, COLOR_DANGER)
-        screen.blit(lbl2, (col2_x + 140 - lbl2.get_width()//2, 165))
+        screen.blit(lbl2, (col2_x + 155 - lbl2.get_width()//2, 135))
 
         self.clash_btn_right_rects = {}
         for i, (code, label) in enumerate(algos):
-            r = pygame.Rect(col2_x, 205 + i*58, 280, 46)
+            r = pygame.Rect(col2_x, 170 + i*52, 310, 42)
             self.clash_btn_right_rects[code] = r
-            self.draw_button(r, label, selected=(self.clash_algo2 == code))
+            self.draw_button(r, label, selected=(self.clash_algo2 == code), small_font=True)
 
         vs_lbl = font_title.render("VS", True, COLOR_TEXT)
-        screen.blit(vs_lbl, (w//2 - vs_lbl.get_width()//2, 295))
+        screen.blit(vs_lbl, (w//2 - vs_lbl.get_width()//2, 275))
 
-        self.btn_start_clash_rect = pygame.Rect(w//2 - 175, h - 160, 350, 50)
+        self.btn_start_clash_rect = pygame.Rect(w//2 - 175, h - 135, 350, 48)
         self.draw_button(
             self.btn_start_clash_rect,
             f"Mulai Duel ({self.clash_algo1} vs {self.clash_algo2})",
@@ -840,17 +964,18 @@ class GameGUI:
             custom_hover=COLOR_BTN_HINT_HOVER
         )
 
-        self.btn_back_rect = pygame.Rect(w//2 - 175, h - 95, 350, 45)
+        self.btn_back_rect = pygame.Rect(w//2 - 175, h - 75, 350, 42)
         self.draw_button(self.btn_back_rect, "Kembali ke Menu Utama")
 
     def draw_clash_play(self):
         w, h = screen.get_width(), screen.get_height()
         
-        board_pixel_size = min((w - 280) // 2, h - 265)
+        board_pixel_size = min((w - 280) // 2, h - 345)
         tile_size = max(10, board_pixel_size // self.n)
         actual_board_w = tile_size * self.n
+        actual_board_h = tile_size * self.n
 
-        # Karakter di Sisi Kiri (Sama seperti Mode 2)
+        # Karakter di Sisi Kiri
         if self.clash_done1 and self.clash_done2:
             p_expr = "Santai"
             t_expr = "Murka" if (self.clash_solved1 or self.clash_solved2) else "Menahan"
@@ -861,64 +986,67 @@ class GameGUI:
 
         # --- PAPAN KIRI (ALGORITMA 1) ---
         offset_x1 = 220
-        offset_y1 = 115
-        total_s1 = max(0, len(self.clash_steps1) - 1)
-        curr_s1 = min(self.clash_idx1 - 1, total_s1)
+        offset_y1 = 110
+        curr_s1 = max(0, self.clash_idx1 - 1)
+        curr_c1 = self.agent.get_conflicts(self.clash_board1)
         
         header1 = f"Agent 1: {self.clash_algo1}"
-        screen.blit(font_subtitle.render(header1, True, COLOR_TSARITSA), (offset_x1, 35))
+        screen.blit(font_subtitle.render(header1, True, COLOR_TSARITSA), (offset_x1, 25))
         
-        stat1 = f"Langkah: {curr_s1}/{total_s1} | Waktu: {self.clash_elapsed1:.2f}s"
-        screen.blit(font_small.render(stat1, True, COLOR_TEXT), (offset_x1, 65))
+        stat1 = f"Langkah: {curr_s1} | Konflik: {curr_c1} | Restart: {self.clash_restarts1} | {self.clash_elapsed1:.2f}s"
+        screen.blit(font_small.render(stat1, True, COLOR_TEXT), (offset_x1, 55))
         
         if self.clash_done1:
             if self.clash_solved1:
                 st1_txt = f"SOLUSI DITEMUKAN! (CPU: {self.clash_calc_time1*1000:.2f} ms)"
                 st1_col = COLOR_SUCCESS
             else:
-                c1 = self.agent.get_conflicts(self.clash_board1)
-                st1_txt = f"MENTOK LOCAL OPTIMUM ({c1} konflik)"
+                st1_txt = f"MENTOK LOCAL OPTIMUM ({curr_c1} konflik)"
                 st1_col = COLOR_DANGER
         else:
             st1_txt = "Sedang mencari solusi..."
             st1_col = COLOR_TSARITSA
-        screen.blit(font_small.render(st1_txt, True, st1_col), (offset_x1, 88))
+        screen.blit(font_small.render(st1_txt, True, st1_col), (offset_x1, 78))
         
         self.draw_grid(self.clash_board1, offset_x1, offset_y1, tile_size)
 
+        graph1_rect = pygame.Rect(offset_x1, offset_y1 + actual_board_h + 10, max(240, actual_board_w), 78)
+        self.draw_conflict_graph(graph1_rect, self.clash_conflict_hist1, COLOR_TSARITSA, f"Grafik Konflik {self.clash_algo1}")
+
         # --- PAPAN KANAN (ALGORITMA 2) ---
-        offset_x2 = w - 40 - actual_board_w
-        offset_y2 = 115
-        total_s2 = max(0, len(self.clash_steps2) - 1)
-        curr_s2 = min(self.clash_idx2 - 1, total_s2)
+        offset_x2 = w - 40 - max(240, actual_board_w)
+        offset_y2 = 110
+        curr_s2 = max(0, self.clash_idx2 - 1)
+        curr_c2 = self.agent.get_conflicts(self.clash_board2)
 
         header2 = f"Agent 2: {self.clash_algo2}"
-        screen.blit(font_subtitle.render(header2, True, COLOR_DANGER), (offset_x2, 35))
+        screen.blit(font_subtitle.render(header2, True, COLOR_DANGER), (offset_x2, 25))
 
-        stat2 = f"Langkah: {curr_s2}/{total_s2} | Waktu: {self.clash_elapsed2:.2f}s"
-        screen.blit(font_small.render(stat2, True, COLOR_TEXT), (offset_x2, 65))
+        stat2 = f"Langkah: {curr_s2} | Konflik: {curr_c2} | Restart: {self.clash_restarts2} | {self.clash_elapsed2:.2f}s"
+        screen.blit(font_small.render(stat2, True, COLOR_TEXT), (offset_x2, 55))
 
         if self.clash_done2:
             if self.clash_solved2:
                 st2_txt = f"SOLUSI DITEMUKAN! (CPU: {self.clash_calc_time2*1000:.2f} ms)"
                 st2_col = COLOR_SUCCESS
             else:
-                c2 = self.agent.get_conflicts(self.clash_board2)
-                st2_txt = f"MENTOK LOCAL OPTIMUM ({c2} konflik)"
+                st2_txt = f"MENTOK LOCAL OPTIMUM ({curr_c2} konflik)"
                 st2_col = COLOR_DANGER
         else:
             st2_txt = "Sedang mencari solusi..."
             st2_col = COLOR_TSARITSA
-        screen.blit(font_small.render(st2_txt, True, st2_col), (offset_x2, 88))
+        screen.blit(font_small.render(st2_txt, True, st2_col), (offset_x2, 78))
 
         self.draw_grid(self.clash_board2, offset_x2, offset_y2, tile_size)
 
-        # Informasi Hasil & Tombol Bawah
+        graph2_rect = pygame.Rect(offset_x2, offset_y2 + actual_board_h + 10, max(240, actual_board_w), 78)
+        self.draw_conflict_graph(graph2_rect, self.clash_conflict_hist2, COLOR_DANGER, f"Grafik Konflik {self.clash_algo2}")
+
         lines = self.message.split('\n')
         for i, line in enumerate(lines):
-            screen.blit(font_text.render(line, True, COLOR_TEXT), (220, h - 105 + (i*24)))
+            screen.blit(font_text.render(line, True, COLOR_TEXT), (220, h - 75 + (i*22)))
 
-        self.btn_rematch_clash_rect = pygame.Rect(w - 540, h - 75, 240, 45)
+        self.btn_rematch_clash_rect = pygame.Rect(w - 540, h - 65, 240, 45)
         self.draw_button(
             self.btn_rematch_clash_rect,
             "Ulangi Duel (Acak Baru)",
@@ -926,25 +1054,30 @@ class GameGUI:
             custom_hover=COLOR_BTN_HINT_HOVER
         )
 
-        self.btn_back_rect = pygame.Rect(w - 280, h - 75, 240, 45)
+        self.btn_back_rect = pygame.Rect(w - 280, h - 65, 240, 45)
         self.draw_button(self.btn_back_rect, "Ganti Algoritma / Kembali")
 
     def draw_vs_menu(self):
         screen.fill(COLOR_BG)
         w, h = screen.get_width(), screen.get_height()
         title = font_title.render("PILIH ALGORITMA LAWAN (PHANES)", True, COLOR_TSARITSA)
-        screen.blit(title, (w//2 - title.get_width()//2, 90))
+        screen.blit(title, (w//2 - title.get_width()//2, 65))
         
-        self.btn_vs_dfs_rect = pygame.Rect(w//2 - 175, 200, 350, 50)
-        self.btn_vs_hc_rect = pygame.Rect(w//2 - 175, 270, 350, 50)
-        self.btn_vs_rhc_rect = pygame.Rect(w//2 - 175, 340, 350, 50)
-        self.btn_vs_mc_rect = pygame.Rect(w//2 - 175, 410, 350, 50)
-        self.btn_back_rect = pygame.Rect(w//2 - 175, h - 100, 350, 50)
-        
-        self.draw_button(self.btn_vs_dfs_rect, "1. Lawan DFS")
-        self.draw_button(self.btn_vs_hc_rect, "2. Lawan Hill Climbing")
-        self.draw_button(self.btn_vs_rhc_rect, "3. Lawan Restart Hill Climbing")
-        self.draw_button(self.btn_vs_mc_rect, "4. Lawan Min-Conflicts")
+        algos = [
+            ("DFS", "1. Lawan DFS"),
+            ("SAHC", "2. Lawan Steepest-Ascent Hill Climbing"),
+            ("FCHC", "3. Lawan First-Choice Hill Climbing"),
+            ("RHC", "4. Lawan Restart Hill Climbing"),
+            ("MC", "5. Lawan Min-Conflicts")
+        ]
+
+        self.vs_btn_rects = {}
+        for i, (code, label) in enumerate(algos):
+            r = pygame.Rect(w//2 - 200, 145 + i*60, 400, 48)
+            self.vs_btn_rects[code] = r
+            self.draw_button(r, label)
+
+        self.btn_back_rect = pygame.Rect(w//2 - 200, h - 85, 400, 48)
         self.draw_button(self.btn_back_rect, "Kembali ke Menu")
 
     def draw_vs_play(self):
@@ -1037,11 +1170,13 @@ class GameGUI:
             return
 
         if self.state == "VS_MENU":
-            if self.btn_back_rect.collidepoint(pos): self.state = "MENU"
-            elif self.btn_vs_dfs_rect.collidepoint(pos): self.start_vs_agent("DFS")
-            elif self.btn_vs_hc_rect.collidepoint(pos): self.start_vs_agent("HC")
-            elif self.btn_vs_rhc_rect.collidepoint(pos): self.start_vs_agent("RHC")
-            elif self.btn_vs_mc_rect.collidepoint(pos): self.start_vs_agent("MC")
+            if self.btn_back_rect.collidepoint(pos):
+                self.state = "MENU"
+                return
+            for code, rect in self.vs_btn_rects.items():
+                if rect.collidepoint(pos):
+                    self.start_vs_agent(code)
+                    return
             return
 
         if self.state == "CLASH_MENU":
@@ -1148,7 +1283,7 @@ class GameGUI:
         self.player_start_time = time.perf_counter()
         self.player_timer = 0.0
         
-        self.animation_steps, self.anim_speed = self.get_algo_steps_and_speed(algo)
+        self.animation_steps, _, self.anim_speed = self.get_algo_steps_and_speed(algo)
         self.anim_index = 0
         self.last_update_time = pygame.time.get_ticks()
 
@@ -1200,6 +1335,9 @@ try:
                 if current_time - game.clash_last_tick1 > game.clash_speed1:
                     if game.clash_idx1 < len(game.clash_steps1):
                         game.clash_board1 = game.clash_steps1[game.clash_idx1]
+                        if game.clash_restart_flags1[game.clash_idx1]:
+                            game.clash_restarts1 += 1
+                        game.clash_conflict_hist1.append(game.agent.get_conflicts(game.clash_board1))
                         game.clash_idx1 += 1
                         game.clash_last_tick1 = current_time
                     else:
@@ -1214,6 +1352,9 @@ try:
                 if current_time - game.clash_last_tick2 > game.clash_speed2:
                     if game.clash_idx2 < len(game.clash_steps2):
                         game.clash_board2 = game.clash_steps2[game.clash_idx2]
+                        if game.clash_restart_flags2[game.clash_idx2]:
+                            game.clash_restarts2 += 1
+                        game.clash_conflict_hist2.append(game.agent.get_conflicts(game.clash_board2))
                         game.clash_idx2 += 1
                         game.clash_last_tick2 = current_time
                     else:
