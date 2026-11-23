@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import os
+import math
 
 # --- LOGIKA AI PHANES ---
 class PhanesAgent:
@@ -397,6 +398,27 @@ for expr, filename in tsaritsa_files.items():
     except Exception:
         tsaritsa_sprites[expr] = None
 
+# --- 3. Memuat Background per Situasi ---
+bg_files = {
+    "VN_STORY": "Intro_BG.png",
+    "MENU": "Menu_BG.png",
+    "SOLO": "Player_BG.png",
+    "VS_MENU": "Player_Agent_BG.png",
+    "VS_AGENT_PLAY": "Player_Agent_BG.png",
+    "CLASH_MENU": "Agent_Agent_BG.png",
+    "CLASH_PLAY": "Agent_Agent_BG.png",
+}
+
+raw_backgrounds = {}
+scaled_bg_cache = {}
+
+for state_key, filename in bg_files.items():
+    try:
+        bg_path = os.path.join(base_path, asset_folder, filename)
+        raw_backgrounds[state_key] = pygame.image.load(bg_path).convert()
+    except Exception:
+        raw_backgrounds[state_key] = None
+
 
 COLOR_BG = (15, 20, 30)
 COLOR_TILE_DARK = (30, 40, 60)
@@ -420,12 +442,94 @@ font_text = pygame.font.SysFont("cambria", 18)
 font_small = pygame.font.SysFont("cambria", 15)
 font_tiny = pygame.font.SysFont("cambria", 13)
 
+
+def draw_state_background(surface, state_key, dark_overlay_alpha=85):
+    w, h = surface.get_width(), surface.get_height()
+    raw_bg = raw_backgrounds.get(state_key)
+
+    if raw_bg is None:
+        surface.fill(COLOR_BG)
+        return
+
+    cache_key = (state_key, w, h, dark_overlay_alpha)
+    if cache_key not in scaled_bg_cache:
+        bg_surf = pygame.transform.smoothscale(raw_bg, (w, h))
+        if dark_overlay_alpha > 0:
+            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay.fill((10, 15, 25, dark_overlay_alpha))
+            bg_surf.blit(overlay, (0, 0))
+        scaled_bg_cache[cache_key] = bg_surf
+
+    surface.blit(scaled_bg_cache[cache_key], (0, 0))
+
+
+# --- EFEK SALJU (CRYO SNOWFALL) ---
+class SnowEffect:
+    def __init__(self, count=95, width=1200, height=700):
+        self.width = max(1, width)
+        self.height = max(1, height)
+        self.flakes = [self._make_flake(random_y=True) for _ in range(count)]
+        self.flake_surfaces = {}
+
+    def _get_flake_surface(self, radius, alpha):
+        key = (radius, alpha)
+        if key not in self.flake_surfaces:
+            size = radius * 2 + 2
+            surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (235, 248, 255, alpha), (radius + 1, radius + 1), radius)
+            self.flake_surfaces[key] = surf
+        return self.flake_surfaces[key]
+
+    def _make_flake(self, random_y=False):
+        radius = random.choice([2, 2, 3, 4])
+        alpha = random.choice([130, 165, 200, 230])
+        return {
+            "x": random.uniform(0, self.width),
+            "y": random.uniform(0, self.height) if random_y else random.uniform(-25, -4),
+            "r": radius,
+            "vy": random.uniform(0.7, 2.1) * (radius / 2.5),
+            "vx": random.uniform(-0.4, 0.4),
+            "phase": random.uniform(0, 2 * math.pi),
+            "alpha": alpha,
+        }
+
+    def resize(self, width, height):
+        self.width = max(1, width)
+        self.height = max(1, height)
+        for f in self.flakes:
+            if f["x"] > self.width:
+                f["x"] = random.uniform(0, self.width)
+            if f["y"] > self.height:
+                f["y"] = random.uniform(0, self.height)
+
+    def update(self):
+        for f in self.flakes:
+            f["phase"] += 0.03
+            f["x"] += f["vx"] + 0.35 * math.sin(f["phase"])
+            f["y"] += f["vy"]
+
+            if f["x"] < -10:
+                f["x"] = self.width + 10
+            elif f["x"] > self.width + 10:
+                f["x"] = -10
+
+            if f["y"] > self.height + 10:
+                f.update(self._make_flake(random_y=False))
+
+    def draw(self, surface):
+        for f in self.flakes:
+            surf = self._get_flake_surface(f["r"], f["alpha"])
+            surface.blit(surf, (int(f["x"]), int(f["y"])))
+
+
 class GameGUI:
     def __init__(self):
         self.available_sizes = [4, 5, 6, 7, 8, 9, 10, 11, 12]
         self.size_index = 4 
         self.n = self.available_sizes[self.size_index]
         self.agent = PhanesAgent(self.n)
+        
+        self.snow = SnowEffect(count=95, width=screen.get_width(), height=screen.get_height())
         
         self.state = "VN_STORY"
         self.dialogues = [
@@ -644,7 +748,7 @@ class GameGUI:
             pygame.draw.circle(screen, color, (x_pos + 125, y_pos + 100), 70)
 
     def draw_vn_scene(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "VN_STORY", dark_overlay_alpha=45)
         w, h = screen.get_width(), screen.get_height()
         
         speaker, expression, text = self.dialogues[self.dialogue_idx]
@@ -658,7 +762,7 @@ class GameGUI:
         screen.blit(name_surf, (name_rect.x + 20, name_rect.y + 5))
 
         tb_surface = pygame.Surface((w - 100, 130), pygame.SRCALPHA)
-        tb_surface.fill((10, 15, 25, 200))
+        tb_surface.fill((10, 15, 25, 210))
         screen.blit(tb_surface, (50, h - 150))
         pygame.draw.rect(screen, COLOR_TILE_LIGHT, (50, h - 150, w - 100, 130), 2)
         
@@ -737,7 +841,8 @@ class GameGUI:
                 screen.blit(lbl_t, (lbl_x, lbl_y))
 
     def draw_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "MENU", dark_overlay_alpha=85)
+        self.snow.draw(screen)
         w, h = screen.get_width(), screen.get_height()
         title = font_title.render("TSARITSA: SEARCHING FOR GNOSIS", True, COLOR_TSARITSA)
         screen.blit(title, (w//2 - title.get_width()//2, 80))
@@ -853,6 +958,7 @@ class GameGUI:
         pygame.draw.circle(screen, (255, 255, 255), pts[-1], 3)
 
     def draw_solo(self):
+        draw_state_background(screen, "SOLO", dark_overlay_alpha=105)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min(500, h - 150)
@@ -877,6 +983,9 @@ class GameGUI:
         self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=True)
 
         panel_x = 850
+        panel_bg = pygame.Surface((max(270, w - panel_x - 10), h - 80), pygame.SRCALPHA)
+        panel_bg.fill((12, 18, 28, 175))
+        screen.blit(panel_bg, (panel_x - 15, 40))
         pygame.draw.line(screen, COLOR_TILE_LIGHT, (panel_x-20, 50), (panel_x-20, h-50), 2)
         
         raw_lines = self.message.split('\n')
@@ -915,7 +1024,8 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu Utama")
 
     def draw_clash_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "CLASH_MENU", dark_overlay_alpha=95)
+        self.snow.draw(screen)
         w, h = screen.get_width(), screen.get_height()
         
         title = font_title.render("BENCHMARK: AGENT VS AGENT (DUAL BOARD)", True, COLOR_TSARITSA)
@@ -969,6 +1079,7 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu Utama")
 
     def draw_clash_play(self):
+        draw_state_background(screen, "CLASH_PLAY", dark_overlay_alpha=110)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min((w - 280) // 2, h - 345)
@@ -1059,7 +1170,8 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Ganti Algoritma / Kembali")
 
     def draw_vs_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "VS_MENU", dark_overlay_alpha=95)
+        self.snow.draw(screen)
         w, h = screen.get_width(), screen.get_height()
         title = font_title.render("PILIH TINGKAT KESULITAN LAWAN (PHANES)", True, COLOR_TSARITSA)
         screen.blit(title, (w//2 - title.get_width()//2, 75))
@@ -1081,6 +1193,7 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu")
 
     def draw_vs_play(self):
+        draw_state_background(screen, "VS_AGENT_PLAY", dark_overlay_alpha=110)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min((w - 150) // 2, h - 250)
@@ -1320,12 +1433,18 @@ try:
                         screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                     else:
                         screen = pygame.display.set_mode((1200, 700), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
                 elif event.key == pygame.K_ESCAPE and is_fullscreen:
                     is_fullscreen = False
                     screen = pygame.display.set_mode((1200, 700), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
             elif event.type == pygame.VIDEORESIZE:
                 if not is_fullscreen:
                     screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
+
+        # Update Salju di Semua Situasi
+        game.snow.update()
 
         # --- UPDATE ANIMASI & TIMER DUAL BOARD (AGENT VS AGENT) ---
         if game.state == "CLASH_PLAY":
@@ -1390,8 +1509,6 @@ try:
                         c_agent = game.agent.get_conflicts(game.board_agent)
                         game.vs_winner = "Player"
                         game.message = f"KAMU MENANG! Phanes [{game.active_level} - {game.active_algo}] terjebak Local Optimum ({c_agent} konflik)!"
-
-        screen.fill(COLOR_BG)
 
         if game.state == "VN_STORY":
             game.draw_vn_scene()
