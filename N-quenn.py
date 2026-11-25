@@ -583,6 +583,10 @@ class GameGUI:
 
         self.solo_victory_shown = False
         self.solo_victory_idx = 0
+        self.solo_victory_fade_start = 0.0
+        self.solo_victory_fade_duration = 2.0  # Jeda 2 detik dengan animasi fade sebelum outro
+        self.outro_fade_in_start = 0.0
+        self.outro_fade_in_duration = 0.45
         self.solo_victory_dialogues = [
             ("Phanes", "Terluka", "Saya tidak menyangka kamu dapat mengumpulkan seluruh bagian yang telah disebar di Teyvat.."),
             ("Tsaritsa", "Murka", "Dan dengan nya, Saya membuat senjata yang akan mengalahkan mu."),
@@ -669,6 +673,7 @@ class GameGUI:
         self.btn_acak_rect = pygame.Rect(0,0,0,0)
         self.btn_reset_rect = pygame.Rect(0,0,0,0)
         self.btn_back_rect = pygame.Rect(0,0,0,0)
+        self.btn_skip_vn_rect = pygame.Rect(0,0,0,0)
 
     def update_board_size(self):
         self.agent = PhanesAgent(self.n)
@@ -774,8 +779,42 @@ class GameGUI:
             if -1 not in self.board and c == 0:
                 self.solo_victory_shown = True
                 self.solo_victory_idx = 0
-                self.state = "SOLO_VICTORY_VN"
+                self.solo_victory_fade_start = time.perf_counter()
+                self.state = "SOLO_VICTORY_FADE"
                 self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
+
+    def draw_skip_button(self):
+        w = screen.get_width()
+        self.btn_skip_vn_rect = pygame.Rect(w - 150, 25, 115, 38)
+        mouse_pos = pygame.mouse.get_pos()
+        is_hover = self.btn_skip_vn_rect.collidepoint(mouse_pos)
+
+        btn_surf = pygame.Surface((self.btn_skip_vn_rect.width, self.btn_skip_vn_rect.height), pygame.SRCALPHA)
+        bg_alpha = 225 if is_hover else 175
+        fill_col = (60, 105, 155, bg_alpha) if is_hover else (25, 40, 65, bg_alpha)
+        btn_surf.fill(fill_col)
+        screen.blit(btn_surf, self.btn_skip_vn_rect.topleft)
+
+        pygame.draw.rect(screen, COLOR_TSARITSA, self.btn_skip_vn_rect, 2, border_radius=8)
+        txt_surf = font_small.render("Skip >>", True, COLOR_TEXT)
+        screen.blit(
+            txt_surf,
+            (
+                self.btn_skip_vn_rect.x + (self.btn_skip_vn_rect.width - txt_surf.get_width()) // 2,
+                self.btn_skip_vn_rect.y + (self.btn_skip_vn_rect.height - txt_surf.get_height()) // 2,
+            ),
+        )
+
+    def draw_solo_victory_fade(self):
+        self.draw_solo()
+        w, h = screen.get_width(), screen.get_height()
+        elapsed = time.perf_counter() - self.solo_victory_fade_start
+        progress = min(1.0, max(0.0, elapsed / self.solo_victory_fade_duration))
+        alpha = int(255 * (progress ** 1.3))
+
+        fade_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        fade_surf.fill((8, 12, 20, alpha))
+        screen.blit(fade_surf, (0, 0))
 
     def draw_solo_victory_vn(self):
         draw_state_background(screen, "SOLO_VICTORY_VN", dark_overlay_alpha=45)
@@ -813,6 +852,16 @@ class GameGUI:
 
         hint = font_text.render("[Klik / Tekan Spasi untuk lanjut...]", True, COLOR_TILE_LIGHT)
         screen.blit(hint, (w - 350, h - 40))
+
+        self.draw_skip_button()
+
+        # Fade-in halus saat baru masuk ke outro setelah jeda 2 detik
+        fade_in_elapsed = time.perf_counter() - self.outro_fade_in_start
+        if 0.0 <= fade_in_elapsed < self.outro_fade_in_duration:
+            in_alpha = int(255 * (1.0 - (fade_in_elapsed / self.outro_fade_in_duration)))
+            in_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            in_surf.fill((8, 12, 20, in_alpha))
+            screen.blit(in_surf, (0, 0))
 
     def advance_solo_victory_vn(self):
         self.solo_victory_idx += 1
@@ -874,6 +923,8 @@ class GameGUI:
 
         hint = font_text.render("[Klik / Tekan Spasi untuk lanjut...]", True, COLOR_TILE_LIGHT)
         screen.blit(hint, (w - 350, h - 40))
+
+        self.draw_skip_button()
 
     def draw_empty_target(self, x, y, size):
         m = size * 0.35
@@ -1339,12 +1390,21 @@ class GameGUI:
         w, h = screen.get_width(), screen.get_height()
         
         if self.state == "VN_STORY":
+            if self.btn_skip_vn_rect.collidepoint(pos):
+                self.state = "MENU"
+                return
             self.dialogue_idx += 1
             if self.dialogue_idx >= len(self.dialogues):
                 self.state = "MENU"
             return
 
+        if self.state == "SOLO_VICTORY_FADE":
+            return
+
         if self.state == "SOLO_VICTORY_VN":
+            if self.btn_skip_vn_rect.collidepoint(pos):
+                self.state = "SOLO"
+                return
             self.advance_solo_victory_vn()
             return
 
@@ -1546,6 +1606,12 @@ try:
         # Update Salju di Semua Situasi
         game.snow.update()
 
+        # --- UPDATE TRANSISI FADE 2 DETIK MENUJU OUTRO SOLO ---
+        if game.state == "SOLO_VICTORY_FADE":
+            if time.perf_counter() - game.solo_victory_fade_start >= game.solo_victory_fade_duration:
+                game.state = "SOLO_VICTORY_VN"
+                game.outro_fade_in_start = time.perf_counter()
+
         # --- UPDATE ANIMASI & TIMER DUAL BOARD (AGENT VS AGENT) ---
         if game.state == "CLASH_PLAY":
             now_perf = time.perf_counter()
@@ -1612,6 +1678,8 @@ try:
 
         if game.state == "VN_STORY":
             game.draw_vn_scene()
+        elif game.state == "SOLO_VICTORY_FADE":
+            game.draw_solo_victory_fade()
         elif game.state == "SOLO_VICTORY_VN":
             game.draw_solo_victory_vn()
         elif game.state == "MENU":
