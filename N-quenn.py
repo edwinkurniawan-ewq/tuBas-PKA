@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import os
+import math
 
 # --- LOGIKA AI PHANES ---
 class PhanesAgent:
@@ -371,7 +372,15 @@ phanes_files = {
     "Pergi": "Phanes_Leaving_Left.png",
     "Buka_Portal": "Phanes_Leaving_Open_Portal_Left.png",
     "Tutup_Portal": "Phanes_Leaving_Closed_Portal.png",
-    "Defeat": "Phanes_Defeat_Front.png"
+    "Defeat": "Phanes_Defeat_Front.png",
+    "Terluka": "Phanes_Injured_Front.png",
+    "Analisis": "Phanes_Analyzing_Front.png",
+    "Menanya": "Phanes_Questioning_Front.png",
+    "Terhibur": "Phanes_Amuse_Front.png",
+    "Polos": "Phanes_Deadpan_Front.png",
+    "Memahami": "Phanes_Understanding_Front.png",
+    "Healing": "Phanes_Healing_Front.png",
+    "Power": "Phanes_Transform_Front.png"
 }
 
 tsaritsa_files = {
@@ -380,7 +389,12 @@ tsaritsa_files = {
     "Sabar": "Tsaritsa_Closed_Eyes_Right.png",
     "Merenung": "Tsaritsa_Reminiscing_Right.png",
     "Santai": "Tsaritsa_Focus_Left.png",
-    "Defeat": "Tsaritsa_Defeat_Left.png"
+    "Defeat": "Tsaritsa_Defeat_Left.png",
+    "Meraih": "Tsaritsa_Reaching_Left.png",
+    "Manifestasi": "Tsaritsa_Energy_Left.png",
+    "Summon_Spear": "Tsaritsa_Spear_Left.png",
+    "Hold_Spear": "Tsaritsa_HoldSpear_Left.png",
+    "Point_Spear": "Tsaritsa_PointingSpear_Left.png"
 }
 
 for expr, filename in phanes_files.items():
@@ -396,6 +410,28 @@ for expr, filename in tsaritsa_files.items():
         tsaritsa_sprites[expr] = pygame.image.load(path).convert_alpha()
     except Exception:
         tsaritsa_sprites[expr] = None
+
+# --- 3. Memuat Background per Situasi ---
+bg_files = {
+    "VN_STORY": "Intro_BG.png",
+    "SOLO_VICTORY_VN": "Outro_BG.png",
+    "MENU": "Menu_BG.png",
+    "SOLO": "Player_BG.png",
+    "VS_MENU": "Player_Agent_BG.png",
+    "VS_AGENT_PLAY": "Player_Agent_BG.png",
+    "CLASH_MENU": "Agent_Agent_BG.png",
+    "CLASH_PLAY": "Agent_Agent_BG.png",
+}
+
+raw_backgrounds = {}
+scaled_bg_cache = {}
+
+for state_key, filename in bg_files.items():
+    try:
+        bg_path = os.path.join(base_path, asset_folder, filename)
+        raw_backgrounds[state_key] = pygame.image.load(bg_path).convert()
+    except Exception:
+        raw_backgrounds[state_key] = None
 
 
 COLOR_BG = (15, 20, 30)
@@ -420,12 +456,94 @@ font_text = pygame.font.SysFont("cambria", 18)
 font_small = pygame.font.SysFont("cambria", 15)
 font_tiny = pygame.font.SysFont("cambria", 13)
 
+
+def draw_state_background(surface, state_key, dark_overlay_alpha=85):
+    w, h = surface.get_width(), surface.get_height()
+    raw_bg = raw_backgrounds.get(state_key)
+
+    if raw_bg is None:
+        surface.fill(COLOR_BG)
+        return
+
+    cache_key = (state_key, w, h, dark_overlay_alpha)
+    if cache_key not in scaled_bg_cache:
+        bg_surf = pygame.transform.smoothscale(raw_bg, (w, h))
+        if dark_overlay_alpha > 0:
+            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay.fill((10, 15, 25, dark_overlay_alpha))
+            bg_surf.blit(overlay, (0, 0))
+        scaled_bg_cache[cache_key] = bg_surf
+
+    surface.blit(scaled_bg_cache[cache_key], (0, 0))
+
+
+# --- EFEK SALJU (CRYO SNOWFALL) ---
+class SnowEffect:
+    def __init__(self, count=95, width=1200, height=700):
+        self.width = max(1, width)
+        self.height = max(1, height)
+        self.flakes = [self._make_flake(random_y=True) for _ in range(count)]
+        self.flake_surfaces = {}
+
+    def _get_flake_surface(self, radius, alpha):
+        key = (radius, alpha)
+        if key not in self.flake_surfaces:
+            size = radius * 2 + 2
+            surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (235, 248, 255, alpha), (radius + 1, radius + 1), radius)
+            self.flake_surfaces[key] = surf
+        return self.flake_surfaces[key]
+
+    def _make_flake(self, random_y=False):
+        radius = random.choice([2, 2, 3, 4])
+        alpha = random.choice([130, 165, 200, 230])
+        return {
+            "x": random.uniform(0, self.width),
+            "y": random.uniform(0, self.height) if random_y else random.uniform(-25, -4),
+            "r": radius,
+            "vy": random.uniform(0.7, 2.1) * (radius / 2.5),
+            "vx": random.uniform(-0.4, 0.4),
+            "phase": random.uniform(0, 2 * math.pi),
+            "alpha": alpha,
+        }
+
+    def resize(self, width, height):
+        self.width = max(1, width)
+        self.height = max(1, height)
+        for f in self.flakes:
+            if f["x"] > self.width:
+                f["x"] = random.uniform(0, self.width)
+            if f["y"] > self.height:
+                f["y"] = random.uniform(0, self.height)
+
+    def update(self):
+        for f in self.flakes:
+            f["phase"] += 0.03
+            f["x"] += f["vx"] + 0.35 * math.sin(f["phase"])
+            f["y"] += f["vy"]
+
+            if f["x"] < -10:
+                f["x"] = self.width + 10
+            elif f["x"] > self.width + 10:
+                f["x"] = -10
+
+            if f["y"] > self.height + 10:
+                f.update(self._make_flake(random_y=False))
+
+    def draw(self, surface):
+        for f in self.flakes:
+            surf = self._get_flake_surface(f["r"], f["alpha"])
+            surface.blit(surf, (int(f["x"]), int(f["y"])))
+
+
 class GameGUI:
     def __init__(self):
         self.available_sizes = [4, 5, 6, 7, 8, 9, 10, 11, 12]
         self.size_index = 4 
         self.n = self.available_sizes[self.size_index]
         self.agent = PhanesAgent(self.n)
+        
+        self.snow = SnowEffect(count=95, width=screen.get_width(), height=screen.get_height())
         
         self.state = "VN_STORY"
         self.dialogues = [
@@ -462,6 +580,31 @@ class GameGUI:
             ("Tsaritsa", "Merenung", "█████████")
         ]
         self.dialogue_idx = 0
+
+        self.solo_victory_shown = False
+        self.solo_victory_idx = 0
+        self.solo_victory_dialogues = [
+            ("Phanes", "Terluka", "Saya tidak menyangka kamu dapat mengumpulkan seluruh bagian yang telah disebar di Teyvat.."),
+            ("Tsaritsa", "Murka", "Dan dengan nya, Saya membuat senjata yang akan mengalahkan mu."),
+            ("Tsaritsa", "Meraih", ""),
+            ("Tsaritsa", "Manifestasi", ""),
+            ("Tsaritsa", "Summon_Spear", ""),
+            ("Tsaritsa", "Hold_Spear", ""),
+            ("Phanes", "Analisis", "(Saya bisa merasakan kekuatan yang dimiliki senjata itu.)"),
+            ("Phanes", "Analisis", "(Jadi dia mengunakan bagian-bagian Descender Ke-3 untuk mengamplifikasi kekuatan yang bisa dikeluarkan..)"),
+            ("Phanes", "Menanya", "Dan kamu pikir kekuatan itu cupuk untuk mengalahkan ku?"),
+            ("Tsaritsa", "Hold_Spear", "Aku tidak hanya yakin-"),
+            ("Tsaritsa", "Point_Spear", "Tapi jamin ini lebih dari cukup."),
+            ("Phanes", "Terhibur", "heh"),
+            ("Phanes", "Terhibur", "Dan apa yang akan kau capai dalam membunuh ku-"),
+            ("Tsaritsa", "Point_Spear", "Membunuh?"),
+            ("Tsaritsa", "Point_Spear", "Kematian adalah sesuatu yang terlalu ringan untuk apa yang telah tersiksa karena tindakan mu, Phanes."),
+            ("Tsaritsa", "Point_Spear", "Tidak, setelah mengalahkan mu. Saya akan mengubah aturan dan sistem yang mengendalikan dunia ini dan membuktikan ''Cinta'' yang sebenernya."),
+            ("Phanes", "Polos", "..."),
+            ("Phanes", "Memahami", "Jadi seperti itu.."),
+            ("Phanes", "Healing", "Baiklah, Anastasya Feodorovna Snezhnaya."),
+            ("Phanes", "Power", "Mari kita lihat ''Cinta'' mana yang akan menang")
+        ]
         
         self.board = [random.randint(0, self.n - 1) for _ in range(self.n)]
         self.board_agent = [random.randint(0, self.n - 1) for _ in range(self.n)]
@@ -623,6 +766,58 @@ class GameGUI:
                     self.message = f"KAMU MENANG! Berhasil menaklukkan Phanes ({self.active_level})!"
             else:
                 self.message = f"{hint_msg}\nSisa konflik: {c}"
+        self.trigger_solo_victory_if_ready()
+
+    def trigger_solo_victory_if_ready(self):
+        if self.state == "SOLO" and not self.solo_victory_shown:
+            c = self.agent.get_conflicts(self.board)
+            if -1 not in self.board and c == 0:
+                self.solo_victory_shown = True
+                self.solo_victory_idx = 0
+                self.state = "SOLO_VICTORY_VN"
+                self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
+
+    def draw_solo_victory_vn(self):
+        draw_state_background(screen, "SOLO_VICTORY_VN", dark_overlay_alpha=45)
+        w, h = screen.get_width(), screen.get_height()
+
+        speaker, expression, text = self.solo_victory_dialogues[self.solo_victory_idx]
+        self.draw_character(speaker, expression)
+
+        name_rect = pygame.Rect(50, h - 200, 200, 40)
+        pygame.draw.rect(screen, COLOR_BTN, name_rect, border_radius=10)
+        pygame.draw.rect(screen, COLOR_TSARITSA, name_rect, 2, border_radius=10)
+
+        name_surf = font_vn_name.render(speaker, True, COLOR_TEXT)
+        screen.blit(name_surf, (name_rect.x + 20, name_rect.y + 5))
+
+        tb_surface = pygame.Surface((w - 100, 130), pygame.SRCALPHA)
+        tb_surface.fill((10, 15, 25, 210))
+        screen.blit(tb_surface, (50, h - 150))
+        pygame.draw.rect(screen, COLOR_TILE_LIGHT, (50, h - 150, w - 100, 130), 2)
+
+        words = text.split(' ')
+        lines = []
+        current_line = ""
+        for word in words:
+            if font_text.size(current_line + word)[0] < w - 150:
+                current_line += word + " "
+            else:
+                lines.append(current_line)
+                current_line = word + " "
+        lines.append(current_line)
+
+        for i, line in enumerate(lines):
+            text_surf = font_text.render(line, True, COLOR_TEXT)
+            screen.blit(text_surf, (70, h - 130 + (i * 25)))
+
+        hint = font_text.render("[Klik / Tekan Spasi untuk lanjut...]", True, COLOR_TILE_LIGHT)
+        screen.blit(hint, (w - 350, h - 40))
+
+    def advance_solo_victory_vn(self):
+        self.solo_victory_idx += 1
+        if self.solo_victory_idx >= len(self.solo_victory_dialogues):
+            self.state = "SOLO"
 
     def draw_character(self, name, expression):
         w, h = screen.get_width(), screen.get_height()
@@ -644,7 +839,7 @@ class GameGUI:
             pygame.draw.circle(screen, color, (x_pos + 125, y_pos + 100), 70)
 
     def draw_vn_scene(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "VN_STORY", dark_overlay_alpha=45)
         w, h = screen.get_width(), screen.get_height()
         
         speaker, expression, text = self.dialogues[self.dialogue_idx]
@@ -658,7 +853,7 @@ class GameGUI:
         screen.blit(name_surf, (name_rect.x + 20, name_rect.y + 5))
 
         tb_surface = pygame.Surface((w - 100, 130), pygame.SRCALPHA)
-        tb_surface.fill((10, 15, 25, 200))
+        tb_surface.fill((10, 15, 25, 210))
         screen.blit(tb_surface, (50, h - 150))
         pygame.draw.rect(screen, COLOR_TILE_LIGHT, (50, h - 150, w - 100, 130), 2)
         
@@ -737,7 +932,8 @@ class GameGUI:
                 screen.blit(lbl_t, (lbl_x, lbl_y))
 
     def draw_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "MENU", dark_overlay_alpha=85)
+        self.snow.draw(screen)
         w, h = screen.get_width(), screen.get_height()
         title = font_title.render("TSARITSA: SEARCHING FOR GNOSIS", True, COLOR_TSARITSA)
         screen.blit(title, (w//2 - title.get_width()//2, 80))
@@ -853,6 +1049,7 @@ class GameGUI:
         pygame.draw.circle(screen, (255, 255, 255), pts[-1], 3)
 
     def draw_solo(self):
+        draw_state_background(screen, "SOLO", dark_overlay_alpha=105)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min(500, h - 150)
@@ -877,6 +1074,9 @@ class GameGUI:
         self.draw_gameplay_characters(p_expr, t_expr, tsaritsa_on_left=True)
 
         panel_x = 850
+        panel_bg = pygame.Surface((max(270, w - panel_x - 10), h - 80), pygame.SRCALPHA)
+        panel_bg.fill((12, 18, 28, 175))
+        screen.blit(panel_bg, (panel_x - 15, 40))
         pygame.draw.line(screen, COLOR_TILE_LIGHT, (panel_x-20, 50), (panel_x-20, h-50), 2)
         
         raw_lines = self.message.split('\n')
@@ -915,7 +1115,7 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu Utama")
 
     def draw_clash_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "CLASH_MENU", dark_overlay_alpha=95)
         w, h = screen.get_width(), screen.get_height()
         
         title = font_title.render("BENCHMARK: AGENT VS AGENT (DUAL BOARD)", True, COLOR_TSARITSA)
@@ -969,6 +1169,7 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu Utama")
 
     def draw_clash_play(self):
+        draw_state_background(screen, "CLASH_PLAY", dark_overlay_alpha=110)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min((w - 280) // 2, h - 345)
@@ -1059,7 +1260,8 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Ganti Algoritma / Kembali")
 
     def draw_vs_menu(self):
-        screen.fill(COLOR_BG)
+        draw_state_background(screen, "VS_MENU", dark_overlay_alpha=95)
+        self.snow.draw(screen)
         w, h = screen.get_width(), screen.get_height()
         title = font_title.render("PILIH TINGKAT KESULITAN LAWAN (PHANES)", True, COLOR_TSARITSA)
         screen.blit(title, (w//2 - title.get_width()//2, 75))
@@ -1081,6 +1283,7 @@ class GameGUI:
         self.draw_button(self.btn_back_rect, "Kembali ke Menu")
 
     def draw_vs_play(self):
+        draw_state_background(screen, "VS_AGENT_PLAY", dark_overlay_alpha=110)
         w, h = screen.get_width(), screen.get_height()
         
         board_pixel_size = min((w - 150) // 2, h - 250)
@@ -1141,6 +1344,10 @@ class GameGUI:
                 self.state = "MENU"
             return
 
+        if self.state == "SOLO_VICTORY_VN":
+            self.advance_solo_victory_vn()
+            return
+
         if self.state == "MENU":
             lbl_text = f"Ukuran Papan (N): {self.n} x {self.n}"
             half_lbl = font_subtitle.size(lbl_text)[0] // 2
@@ -1160,6 +1367,7 @@ class GameGUI:
             if w//2 - 175 <= x <= w//2 + 175:
                 if 240 <= y <= 290: 
                     self.state = "SOLO"
+                    self.solo_victory_shown = False
                     self.board = [random.randint(0, self.n - 1) for _ in range(self.n)]
                     self.hints_left = self.max_hints
                     self.last_hint_cells = []
@@ -1222,6 +1430,7 @@ class GameGUI:
         if self.state == "SOLO":
             if self.btn_acak_rect.collidepoint(pos):
                 self.board = [random.randint(0, self.n - 1) for _ in range(self.n)]
+                self.solo_victory_shown = False
                 self.hints_left = self.max_hints
                 self.last_hint_cells = []
                 self.message = "Papan pemain telah diacak ulang!"
@@ -1229,6 +1438,7 @@ class GameGUI:
 
             if self.btn_reset_rect.collidepoint(pos):
                 self.board = [0] * self.n  
+                self.solo_victory_shown = False
                 self.hints_left = self.max_hints
                 self.last_hint_cells = []
                 self.message = "Papan pemain telah di-reset!"
@@ -1249,6 +1459,7 @@ class GameGUI:
                 c = self.agent.get_conflicts(self.board)
                 if c == 0:
                     self.message = "Kemenangan Mutlak!\nSemua Gnosis telah dikumpulkan!"
+                    self.trigger_solo_victory_if_ready()
                 else:
                     self.message = f"Jumlah Konflik saat ini: {c}"
 
@@ -1311,6 +1522,8 @@ try:
                         game.dialogue_idx += 1
                         if game.dialogue_idx >= len(game.dialogues):
                             game.state = "MENU"
+                    elif game.state == "SOLO_VICTORY_VN":
+                        game.advance_solo_victory_vn()
                 elif event.key == pygame.K_h:
                     if game.state == "SOLO" or (game.state == "VS_AGENT_PLAY" and not game.vs_winner):
                         game.apply_tsaritsa_hint()
@@ -1320,12 +1533,18 @@ try:
                         screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                     else:
                         screen = pygame.display.set_mode((1200, 700), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
                 elif event.key == pygame.K_ESCAPE and is_fullscreen:
                     is_fullscreen = False
                     screen = pygame.display.set_mode((1200, 700), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
             elif event.type == pygame.VIDEORESIZE:
                 if not is_fullscreen:
                     screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                    game.snow.resize(screen.get_width(), screen.get_height())
+
+        # Update Salju di Semua Situasi
+        game.snow.update()
 
         # --- UPDATE ANIMASI & TIMER DUAL BOARD (AGENT VS AGENT) ---
         if game.state == "CLASH_PLAY":
@@ -1391,10 +1610,10 @@ try:
                         game.vs_winner = "Player"
                         game.message = f"KAMU MENANG! Phanes [{game.active_level} - {game.active_algo}] terjebak Local Optimum ({c_agent} konflik)!"
 
-        screen.fill(COLOR_BG)
-
         if game.state == "VN_STORY":
             game.draw_vn_scene()
+        elif game.state == "SOLO_VICTORY_VN":
+            game.draw_solo_victory_vn()
         elif game.state == "MENU":
             game.draw_menu()
         elif game.state == "VS_MENU":
